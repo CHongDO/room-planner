@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://example.pages.dev/sitemap.xml
+Sitemap: https://room-planner-a3x.pages.dev/sitemap.xml
