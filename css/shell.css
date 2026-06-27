@@ -1,0 +1,150 @@
+/* ============================================================
+   shell.css — 앱 셸 레이아웃 (헤더 / 앱 전환 / 본문 / 푸터)
+   ------------------------------------------------------------
+   색·폰트·모양은 theme.css 변수만 사용합니다. 색값 직접 작성 금지.
+   ============================================================ */
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--app-bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--font-size);
+}
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+/* ---- 레이아웃 골격 ---- */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+/* ---- 헤더 ---- */
+.app-header {
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.app-header__brand {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+  display: flex; align-items: center; gap: var(--space-2);
+}
+.app-header__brand .logo { width: 22px; height: 22px; }
+
+/* 앱 전환 탭 (레지스트리가 자동 생성) */
+.app-tabs { display: flex; gap: var(--space-1); flex-wrap: wrap; }
+.app-tab {
+  padding: 6px var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--control-bg);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.app-tab:hover { background: var(--control-bg-hover); }
+.app-tab.active {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+}
+.app-header__spacer { flex: 1 1 auto; }
+.app-header__links { display: flex; gap: var(--space-3); }
+.app-header__links a { color: var(--text-muted); font-size: var(--font-size-sm); text-decoration: none; }
+.app-header__links a:hover { color: var(--text-link); }
+
+/* ---- 본문(앱 마운트 영역) ---- */
+.app-main {
+  flex: 1 1 auto;
+  padding: var(--space-4);
+}
+#app-root { width: 100%; }
+
+/* ---- 푸터 ---- */
+.app-footer {
+  background: var(--footer-bg);
+  border-top: 1px solid var(--border);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center;
+}
+.app-footer a { color: var(--text-muted); text-decoration: none; }
+.app-footer a:hover { color: var(--text-link); }
+.app-footer__spacer { flex: 1 1 auto; }
+
+/* ============================================================
+   공용 컨트롤 (앱들이 재사용)
+   ============================================================ */
+.btn {
+  height: 32px; padding: 0 var(--space-3);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  background: var(--control-bg);
+  color: var(--text);
+  font-size: var(--font-size); font-family: var(--font-ui);
+  cursor: pointer;
+}
+.btn:hover { background: var(--control-bg-hover); }
+.btn--primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+.btn--primary:hover { filter: brightness(1.08); background: var(--accent); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.input, select.input {
+  height: 32px; padding: 0 var(--space-2);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  background: var(--control-bg);
+  color: var(--text);
+  font-size: var(--font-size); font-family: var(--font-ui);
+}
+.field label { display: block; font-size: var(--font-size-sm); color: var(--text-secondary); margin-bottom: var(--space-1); }
+.row { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+.muted { color: var(--text-muted); font-size: var(--font-size-sm); }
+
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+}
+
+/* 토글 알약 */
+.toggle-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--control-bg);
+  cursor: pointer; font-size: var(--font-size-sm);
+}
+.toggle-pill .state { font-weight: 600; color: var(--text-accent); }
+.toggle-pill.off .state { color: var(--text-muted); }
+
+/* 통계 박스 */
+.stat-box { background: var(--surface-2); border-radius: var(--radius); padding: var(--space-3) var(--space-4); flex: 1; }
+.stat-box p.label { font-size: var(--font-size-sm); color: var(--text-secondary); margin: 0 0 4px; }
+.stat-box p.value { font-size: 22px; font-weight: 600; margin: 0; }
+
+/* ---- 접근성/모션 ---- */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- ====== SEO 기본 ====== -->
+  <title>방 배치 시뮬레이터 - 가구 배치 미리보기 (무료)</title>
+  <meta name="description" content="설치·회원가입 없이 방 크기와 가구 치수를 입력해 배치를 미리 보는 무료 시뮬레이터. 문 여는 공간·의자 빼는 공간 등 여유 공간과 벽 붙이기, 채광 차단까지 한눈에 확인하세요.">
+  <meta name="keywords" content="방 배치, 가구 배치 시뮬레이터, 원룸 배치, 방 꾸미기, 가구 배치도, 인테리어 시뮬레이션, 방 크기 계산">
+  <link rel="canonical" href="https://example.pages.dev/">
+  <meta name="robots" content="index, follow">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="alternate icon" href="assets/favicon.ico">
+
+  <!-- ====== Open Graph ====== -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="방 배치 시뮬레이터 - 가구 배치 미리보기">
+  <meta property="og:description" content="방 크기와 가구 치수를 입력해 배치를 미리 보는 무료 시뮬레이터. 여유 공간·채광까지 확인.">
+  <meta property="og:url" content="https://example.pages.dev/">
+  <meta property="og:image" content="https://example.pages.dev/assets/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <!-- ====== 구조화 데이터 ====== -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "방 배치 시뮬레이터",
+    "applicationCategory": "DesignApplication",
+    "operatingSystem": "Web Browser",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "KRW" },
+    "description": "방 크기와 가구 치수를 입력해 배치를 미리 보는 무료 온라인 시뮬레이터."
+  }
+  </script>
+
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/shell.css">
+
+  <!-- ====== AdSense 자리 (심사 통과 후 발급코드로 교체) ======
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
+  -->
+</head>
+<body>
+  <div class="app-shell">
+
+    <!-- ====== 헤더: 브랜드 + 앱 탭 + 문서 링크 ====== -->
+    <header class="app-header">
+      <a class="app-header__brand" href="./">
+        <svg class="logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+        방 배치 시뮬레이터
+      </a>
+      <nav class="app-tabs" aria-label="기능 선택"><!-- JS가 탭 생성 --></nav>
+      <span class="app-header__spacer"></span>
+      <div class="app-header__links">
+        <a href="pages/about.html">소개</a>
+        <a href="pages/features.html">기능</a>
+        <a href="pages/privacy.html">개인정보</a>
+      </div>
+    </header>
+
+    <!-- ====== 본문: 앱이 마운트되는 영역 ====== -->
+    <main class="app-main">
+      <!-- 검색엔진/스크린리더용 텍스트 (앱 로드 전 표시) -->
+      <h1 class="sr-only">방 배치 시뮬레이터 — 방 크기와 가구를 입력해 배치를 미리 보세요</h1>
+      <div id="app-root"></div>
+    </main>
+
+    <!-- ====== 푸터 ====== -->
+    <footer class="app-footer">
+      <span>© <span id="year"></span> 방 배치 시뮬레이터</span>
+      <span class="app-footer__spacer"></span>
+      <a href="pages/about.html">사이트 소개</a>
+      <a href="pages/features.html">기능 소개</a>
+      <a href="pages/privacy.html">개인정보처리방침</a>
+    </footer>
+  </div>
+
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+/* ============================================================
+   theme.css — 테마 토큰 (색/폰트/간격/모양)
+   ------------------------------------------------------------
+   ▶ 테마를 바꾸려면 원칙적으로 이 파일의 값만 수정하면 됩니다.
+     shell.css, 각 앱(apps/*)은 아래 변수만 참조합니다.
+   ▶ UI/테마 미정 단계라 지금은 중립(와이어프레임) 톤입니다.
+   ============================================================ */
+
+:root {
+  /* ---- 앱 골격(셸) 색 ---- */
+  --app-bg: #f3f4f6;            /* 페이지 전체 배경 */
+  --surface-1: #ffffff;        /* 카드/패널 배경 */
+  --surface-2: #eef1f5;        /* 보조 면 (가구 기본면 등) */
+  --header-bg: #ffffff;
+  --footer-bg: #ffffff;
+
+  /* ---- 경계선 ---- */
+  --border: #e3e6ea;           /* 옅은 구분선 */
+  --border-strong: #c2c8d0;    /* 입력/가구 외곽선 */
+  --radius: 8px;
+  --radius-sm: 6px;
+
+  /* ---- 텍스트 ---- */
+  --text: #1f2329;
+  --text-secondary: #4a5159;
+  --text-muted: #8a929c;
+  --text-link: #1a5fb4;
+
+  /* ---- 강조색 ---- */
+  --accent: #3b6fd4;
+  --accent-text: #ffffff;
+  --text-accent: #3b6fd4;      /* 토글 ON 등 */
+
+  /* ---- 컨트롤(버튼/입력) ---- */
+  --control-bg: #ffffff;
+  --control-bg-hover: #eef2f8;
+  --control-border: #c2c8d0;
+
+  /* ============================================================
+     가구 카테고리 색 (role 기반)
+     룸 플래너의 가구 종류별 색. 본체 배경/외곽선/글자 세트.
+     ------------------------------------------------------------ */
+  --bg-accent:   #e7efff;  --border-accent:  #9cc0ff;  --text-accent-strong: #1d4fa8;
+  --bg-success:  #e6f6ec;  --border-success: #9ad9b3;  --text-success: #1c7a45;
+  --bg-warning:  #fdf1dd;  --border-warning: #ecc788;  --text-warning: #9a6b16;
+  --bg-pro:      #efe9fb;  --border-pro:     #c3aef0;  --text-pro:     #6a3fb5;
+  --bg-danger:   #fde8e6;  --border-danger:  #f0a39b;  --text-danger:  #b53229;
+
+  /* ---- 개구부(문/창) 색 ---- */
+  --door-color: #3b6fd4;       /* 문 */
+  --window-color: #378add;     /* 창문 */
+  --window-fill: #85b7eb;
+  --window-fill-text: #042c53;
+
+  /* ---- 타이포그래피 ---- */
+  --font-ui: "Segoe UI", Tahoma, "맑은 고딕", "Malgun Gothic", system-ui, sans-serif;
+  --font-size: 14px;
+  --font-size-sm: 12px;
+
+  /* ---- 간격 ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+}

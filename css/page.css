@@ -1,0 +1,40 @@
+/* ============================================================
+   page.css — 문서 페이지(about/features/privacy) 공용 스타일
+   theme.css 변수를 사용합니다.
+   ============================================================ */
+
+body.doc {
+  margin: 0;
+  font-family: var(--font-ui);
+  color: var(--text);
+  background: var(--app-bg);
+  min-height: 100vh;
+}
+.doc__wrap { max-width: 760px; margin: 0 auto; padding: 40px 20px 80px; }
+.doc__card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.doc__titlebar {
+  background: var(--accent);
+  color: var(--accent-text);
+  padding: 12px 20px;
+  font-weight: 700;
+  display: flex; align-items: center; gap: 8px;
+}
+.doc__body { padding: 28px 32px; line-height: 1.7; }
+.doc__body h1 { font-size: 24px; margin: 0 0 4px; }
+.doc__body h2 { font-size: 18px; margin: 28px 0 8px; }
+.doc__body p, .doc__body li { font-size: 15px; color: var(--text); }
+.doc__body ul { padding-left: 20px; }
+.doc__body a { color: var(--text-link); }
+.doc__meta { color: var(--text-muted); font-size: 13px; margin-bottom: 20px; }
+.doc__back {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 28px; text-decoration: none;
+  color: var(--accent); font-weight: 600;
+}
+.doc__nav { text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 24px; }
+.doc__nav a { color: var(--text-secondary); }

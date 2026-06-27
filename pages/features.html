@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>기능 소개 - 방 배치 시뮬레이터</title>
+  <meta name="description" content="방 모양·크기 설정, 가구 치수 직접 입력, 문/창 배치, 여유 공간 표시, 벽 붙이기 스냅 등 방 배치 시뮬레이터의 기능을 소개합니다.">
+  <link rel="canonical" href="https://example.pages.dev/pages/features.html">
+  <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+  <link rel="alternate icon" href="../assets/favicon.ico">
+  <link rel="stylesheet" href="../css/theme.css">
+  <link rel="stylesheet" href="../css/page.css">
+</head>
+<body class="doc">
+  <div class="doc__wrap">
+    <article class="doc__card">
+      <div class="doc__titlebar">기능 소개</div>
+      <div class="doc__body">
+        <h1>기능 소개</h1>
+        <p class="doc__meta">현재 제공 중인 기능과 사용 방법</p>
+
+        <h2>방 설정</h2>
+        <ul>
+          <li><strong>모양 선택</strong>: 사각형 또는 ㄱ자(코너가 잘린) 방. ㄱ자를 선택하면 잘린 폭·높이를 따로 지정할 수 있고, 그 영역에 가구를 놓으면 경고가 표시됩니다.</li>
+          <li><strong>크기 입력</strong>: 가로·세로(그리고 ㄱ자의 잘린 부분)를 직접 입력</li>
+          <li><strong>면적 표시</strong>: 입력한 크기를 평(한국어) 또는 m²(English) 단위로 자동 환산</li>
+        </ul>
+
+        <h2>가구 배치</h2>
+        <ul>
+          <li><strong>가구 종류</strong>: 침대·책상·의자·옷장·행거·책장·서랍장과, 직접 모양(사각형·원·삼각형)을 골라 만드는 <strong>기타(붙박이장 등 자유 형태)</strong></li>
+          <li><strong>치수 직접 입력</strong>: 가로×세로×높이를 각 가구마다 원하는 값으로 지정</li>
+          <li><strong>여유 공간</strong>: 가구 앞쪽·측면에 실제로 필요한 여유 공간(옷장 문 여는 공간, 의자 빼는 공간, 행거 옷 부피 등)을 빗금으로 표시하고, 값도 가구마다 직접 조절. 다른 가구·벽·ㄱ자 잘린 영역과 겹치면 경고</li>
+          <li><strong>드래그 이동 · 벽 붙이기</strong>: 가구를 끌어 배치하면 벽 가까이에서 자동으로 붙습니다(토글로 끄고 켤 수 있음)</li>
+          <li><strong>회전</strong>: 가구 위 손잡이를 끌어 0~359도 자유롭게 회전(Shift를 누르면 15도 단위로 붙음), 또는 숫자칸에 각도를 직접 입력</li>
+          <li><strong>번호와 정보</strong>: 가구마다 번호가 매겨지고, 마우스를 올리면 치수·높이·회전각·위치가 표시됩니다</li>
+          <li><strong>겹침 경고</strong>: 가구가 서로 겹치거나 문·창문을 막으면 빨갛게 표시</li>
+        </ul>
+
+        <h2>문 · 창문</h2>
+        <ul>
+          <li>문과 창문을 추가해 벽을 따라 자유롭게 끌어 배치, 필요 없으면 개별 삭제</li>
+          <li>문 앞 여는 공간이 가구로 막히면 경고</li>
+          <li><strong>창틀 높이</strong>: 창문마다 바닥에서 창틀까지의 높이를 입력할 수 있어, 그보다 <em>낮은</em> 가구는 채광을 막지 않는 것으로 정확히 판정합니다(서랍장은 막지만 낮은 협탁은 안 막는 식)</li>
+        </ul>
+
+        <h2>두 가지 보기: 위에서 보기 / 정면 보기</h2>
+        <p>
+          평면도만으로는 가구·창문의 실제 높이 관계를 가늠하기 어려워, 벽 하나를
+          골라 정면에서 보는 <strong>정면 보기(엘리베이션)</strong>를 함께 제공합니다.
+          앞·뒤·좌·우 중 보고 싶은 벽을 고르면, 그 벽을 기준으로 가구와 문·창문이
+          바닥선에 맞춰 높이대로 그려집니다. 벽에서 먼 가구는 옅게, 가까운 가구는
+          진하게 그려 원근감을 주고, 방 천장보다 높은 가구는 빨갛게 표시해 바로
+          알아볼 수 있습니다. 정면 보기는 비교·확인용 읽기 전용 화면이며, 가구를
+          옮기려면 위에서 보기로 돌아가면 됩니다. 평면 뷰의 방 테두리 바깥에는
+          어느 벽인지 보여주는 라벨이 있어 클릭하면 그 벽의 정면 보기로 바로
+          이동합니다.
+        </p>
+
+        <h2>줄자와 단위</h2>
+        <p>
+          위에서 보기·정면 보기 모두 방 테두리 바깥쪽에 간격을 가늠할 수 있는
+          줄자 눈금이 표시됩니다. 표시 단위는 cm·mm·in(인치) 중에서 바로 바꿀 수
+          있고, 모든 입력칸과 줄자·툴팁이 함께 바뀝니다. 화면 언어도 한국어와
+          English 중에서 전환할 수 있습니다.
+        </p>
+
+        <h2>통계와 경고</h2>
+        <p>
+          방 면적 대비 가구가 차지하는 비율(바닥 활용률)과 현재 경고 건수를
+          항상 표시합니다. 문이 막히거나 창문 채광이 가려지면 구체적인 안내
+          문구도 함께 보여줍니다.
+        </p>
+
+        <h2>개인정보</h2>
+        <p>
+          방 크기·가구 배치 등 입력한 모든 내용은 서버로 전송되지 않고 브라우저
+          안에서만 계산됩니다. 자세한 내용은 <a href="privacy.html">개인정보처리방침</a>을
+          참고하세요.
+        </p>
+
+        <h2>앞으로 추가될 기능</h2>
+        <p>배치 결과 이미지 저장·공유, 가구 사이즈 프리셋, 방 모양 추가 등을 준비 중입니다.</p>
+
+        <a class="doc__back" href="../index.html">← 시뮬레이터로 돌아가기</a>
+      </div>
+    </article>
+    <p class="doc__nav">
+      <a href="about.html">사이트 소개</a> · <a href="features.html">기능 소개</a> · <a href="privacy.html">개인정보처리방침</a>
+    </p>
+  </div>
+</body>
+</html>
