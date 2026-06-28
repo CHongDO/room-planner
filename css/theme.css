@@ -7,37 +7,39 @@
    ============================================================ */
 
 :root {
-  /* ---- 앱 골격(셸) 색 ---- */
-  --app-bg: #f3f4f6;            /* 페이지 전체 배경 */
+  /* ============================================================
+     (A) 전체 UI — 라이트 (헤더·팔레트·문서·광고 영역)
+     ============================================================ */
+  --app-bg: #f5f7fa;            /* 페이지 전체 배경 */
   --surface-1: #ffffff;        /* 카드/패널 배경 */
-  --surface-2: #eef1f5;        /* 보조 면 (가구 기본면 등) */
+  --surface-2: #eef2f7;        /* 보조 면 (가구 기본면 등) */
   --header-bg: #ffffff;
   --footer-bg: #ffffff;
 
   /* ---- 경계선 ---- */
-  --border: #e3e6ea;           /* 옅은 구분선 */
-  --border-strong: #c2c8d0;    /* 입력/가구 외곽선 */
+  --border: #dfe6ef;           /* 옅은 구분선 */
+  --border-strong: #b9c8db;    /* 입력/가구 외곽선 */
   --radius: 8px;
   --radius-sm: 6px;
 
   /* ---- 텍스트 ---- */
-  --text: #1f2329;
-  --text-secondary: #4a5159;
-  --text-muted: #8a929c;
-  --text-link: #1a5fb4;
+  --text: #0b1f3a;
+  --text-secondary: #3a5275;
+  --text-muted: #8294ad;
+  --text-link: #2f6fb3;
 
   /* ---- 강조색 ---- */
-  --accent: #3b6fd4;
+  --accent: #2f6fb3;
   --accent-text: #ffffff;
-  --text-accent: #3b6fd4;      /* 토글 ON 등 */
+  --text-accent: #2f6fb3;      /* 토글 ON 등 */
 
   /* ---- 컨트롤(버튼/입력) ---- */
   --control-bg: #ffffff;
-  --control-bg-hover: #eef2f8;
-  --control-border: #c2c8d0;
+  --control-bg-hover: #eaf2fb;
+  --control-border: #b9c8db;
 
   /* ============================================================
-     가구 카테고리 색 (role 기반)
+     가구 카테고리 색 (role 기반) — 라이트 UI(팔레트 등)에서 쓰는 세트.
      룸 플래너의 가구 종류별 색. 본체 배경/외곽선/글자 세트.
      ------------------------------------------------------------ */
   --bg-accent:   #e7efff;  --border-accent:  #9cc0ff;  --text-accent-strong: #1d4fa8;
@@ -46,11 +48,31 @@
   --bg-pro:      #efe9fb;  --border-pro:     #c3aef0;  --text-pro:     #6a3fb5;
   --bg-danger:   #fde8e6;  --border-danger:  #f0a39b;  --text-danger:  #b53229;
 
-  /* ---- 개구부(문/창) 색 ---- */
-  --door-color: #3b6fd4;       /* 문 */
-  --window-color: #378add;     /* 창문 */
-  --window-fill: #85b7eb;
-  --window-fill-text: #042c53;
+  /* ============================================================
+     (B) 캔버스 전용 — 다크 블루프린트 (방 그리는 영역(#room, #elev) 안에서만 사용)
+     ------------------------------------------------------------ */
+  --canvas-bg: #0b1f3a;             /* 캔버스 배경(네이비) */
+  --canvas-bg-2: #0e2748;           /* 보조 면(ㄱ자 잘린 모서리 등) */
+  --canvas-grid: rgba(99, 197, 255, 0.15); /* 격자 선 */
+  --canvas-line: #ffffff;           /* 벽/가구 외곽선, 치수선 */
+  --canvas-line-soft: rgba(255, 255, 255, 0.3); /* 여유 공간 해칭 등 약한 선 */
+  --canvas-accent: #63c5ff;         /* 하늘색 강조선(문/창) */
+  --canvas-highlight: #ffd23f;      /* 선택·핸들·중요 표시(노랑) */
+  --canvas-muted: rgba(255, 255, 255, 0.55); /* 캔버스 위 보조 텍스트(천장/바닥 라벨 등) */
+
+  /* ---- 캔버스 내 개구부(문/창) 색 ---- */
+  --canvas-door-color: #63c5ff;
+  --canvas-window-color: #8fd6ff;
+  --canvas-window-fill: rgba(143, 214, 255, 0.4);
+  --canvas-window-fill-text: #062038;
+
+  /* ---- 캔버스 내 가구 카테고리 색(다크 배경에서 보이도록 채도/명도 보강, 의미는 동일) ---- */
+  --canvas-bg-accent:   rgba(99, 197, 255, 0.22);  --canvas-border-accent:  #8fd6ff; --canvas-text-accent:  #e3f4ff;
+  --canvas-bg-success:  rgba(86, 214, 154, 0.22);  --canvas-border-success: #7be3b0; --canvas-text-success: #d8f7e8;
+  --canvas-bg-warning:  rgba(255, 196, 77, 0.22);  --canvas-border-warning: #ffd27a; --canvas-text-warning: #ffedc7;
+  --canvas-bg-pro:      rgba(184, 148, 255, 0.22); --canvas-border-pro:     #c7adff; --canvas-text-pro:     #efe5ff;
+  --canvas-bg-danger:   rgba(255, 99, 99, 0.30);   --canvas-border-danger:  #ff9090; --canvas-text-danger:  #ffe1e1;
+  --canvas-bg-neutral:  rgba(255, 255, 255, 0.10); --canvas-border-neutral: rgba(255, 255, 255, 0.45); --canvas-text-neutral: #eaf1fb;
 
   /* ---- 타이포그래피 ---- */
   --font-ui: "Segoe UI", Tahoma, "맑은 고딕", "Malgun Gothic", system-ui, sans-serif;

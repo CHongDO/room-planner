@@ -165,6 +165,15 @@ export default {
         .rp-settings-toggle { display: none; }
         .rp-settings-inline { display: contents; } /* row1에 끼워 넣는 span: 데스크탑에선 박스 없이 그대로 펼침 */
         #roomWrap { padding: 36px; }
+        /* 방 그리는 영역(#room, #elev)만 다크 블루프린트. 바깥(roomWrap·줄자·툴바)은 라이트 유지. */
+        .rp-canvas-surface {
+          background-color: var(--canvas-bg);
+          background-image:
+            repeating-linear-gradient(to right, var(--canvas-grid) 0 1px, transparent 1px 20px),
+            repeating-linear-gradient(to bottom, var(--canvas-grid) 0 1px, transparent 1px 20px);
+          border: 1px solid var(--canvas-line);
+          border-radius: var(--radius-sm);
+        }
         /* 768px 이하 모바일에서만 레이아웃을 바꾼다. 데스크탑은 기존 그대로. */
         @media (max-width: 768px) {
           .rp-main { flex-direction: column; flex-wrap: nowrap; }
@@ -268,8 +277,8 @@ export default {
               <span class="plan-wall-label" id="wallLabelBottom" style="position:absolute; font-size:10px; color:var(--text-link); cursor:pointer; white-space:nowrap;"></span>
               <span class="plan-wall-label" id="wallLabelLeft" style="position:absolute; font-size:10px; color:var(--text-link); cursor:pointer; white-space:nowrap;"></span>
               <span class="plan-wall-label" id="wallLabelRight" style="position:absolute; font-size:10px; color:var(--text-link); cursor:pointer; white-space:nowrap;"></span>
-              <div id="room" style="position:relative; background:var(--surface-1); border:1px solid var(--border-strong); overflow:hidden;"></div>
-              <div id="elev" style="position:relative; background:var(--surface-1); border:1px solid var(--border-strong); overflow:hidden; display:none;"></div>
+              <div id="room" class="rp-canvas-surface" style="position:relative; overflow:hidden;"></div>
+              <div id="elev" class="rp-canvas-surface" style="position:relative; overflow:hidden; display:none;"></div>
             </div>
             <p id="elevHint" class="muted" style="display:none; margin:6px 0 0; line-height:1.6;" data-i18n="elevHint"></p>
             <div class="row" style="margin-top:12px; align-items:stretch;">
@@ -350,9 +359,11 @@ export default {
     const notchRect = () => ({ x:room.w-room.notchW, y:0, w:room.notchW, h:room.notchH });
     const inNotch = (r) => room.shape==='lshape' && overlap(r, notchRect());
 
+    // 캔버스(다크 블루프린트) 안에서 쓰는 가구 카테고리 색. 색 의미(카테고리 구분)는
+    // 라이트 UI와 동일하게 유지하되, 어두운 배경에서 보이도록 채도/명도만 다르게 잡은 세트.
     function roleColors(role) {
-      if (role==='neutral') return { bg:'var(--surface-2)', border:'var(--border-strong)', text:'var(--text-secondary)' };
-      return { bg:`var(--bg-${role})`, border:`var(--border-${role})`, text:`var(--text-${role})` };
+      if (role==='neutral') return { bg:'var(--canvas-bg-neutral)', border:'var(--canvas-border-neutral)', text:'var(--canvas-text-neutral)' };
+      return { bg:`var(--canvas-bg-${role})`, border:`var(--canvas-border-${role})`, text:`var(--canvas-text-${role})` };
     }
 
     function clamp(it) {
@@ -557,8 +568,8 @@ export default {
         const notchEl = document.createElement('div');
         Object.assign(notchEl.style, {
           position:'absolute', zIndex:'2', boxSizing:'border-box',
-          background:'var(--surface-2)',
-          borderLeft:'1px solid var(--border-strong)', borderBottom:'1px solid var(--border-strong)',
+          background:'var(--canvas-bg-2)',
+          borderLeft:'1px solid var(--canvas-line)', borderBottom:'1px solid var(--canvas-line)',
           left:Math.round(nr.x*scale)+'px', top:Math.round(nr.y*scale)+'px',
           width:Math.round(nr.w*scale)+'px', height:Math.round(nr.h*scale)+'px',
         });
@@ -569,7 +580,7 @@ export default {
       openings.forEach((op) => {
         const cr = openingClearRect(op);
         const z = mkZone(cr, scale);
-        const col = op.kind==='door' ? 'var(--door-color)' : 'var(--window-color)';
+        const col = op.kind==='door' ? 'var(--canvas-door-color)' : 'var(--canvas-window-color)';
         z.style.setProperty('--cz-color', col); z.style.setProperty('--cz-border', col);
         z.style.opacity = '.45';
         roomEl.appendChild(z);
@@ -580,8 +591,8 @@ export default {
         clearanceRects(it).forEach((piece) => {
           const z = mkZoneRotated(piece.render, scale, it.rot);
           const warn = it.clrWarn;
-          z.style.setProperty('--cz-color', warn?'var(--text-danger)':'var(--text-muted)');
-          z.style.setProperty('--cz-border', warn?'var(--border-danger)':'var(--border-strong)');
+          z.style.setProperty('--cz-color', warn?'var(--canvas-border-danger)':'var(--canvas-line-soft)');
+          z.style.setProperty('--cz-border', warn?'var(--canvas-border-danger)':'var(--canvas-line-soft)');
           roomEl.appendChild(z);
         });
       });
@@ -598,8 +609,8 @@ export default {
           left:Math.round(g.x*scale)+'px', top:Math.round(g.y*scale)+'px',
           width:Math.round(g.w*scale)+'px', height:Math.round(g.h*scale)+'px',
         });
-        if (op.kind==='door') { el.style.background = 'var(--door-color)'; el.style.color = '#fff'; }
-        else { el.style.background = 'var(--window-fill)'; el.style.color = 'var(--window-fill-text)'; }
+        if (op.kind==='door') { el.style.background = 'var(--canvas-door-color)'; el.style.color = 'var(--canvas-bg)'; }
+        else { el.style.background = 'var(--canvas-window-fill)'; el.style.color = 'var(--canvas-window-fill-text)'; }
         el.dataset.openId = op.id;
         const label = document.createElement('span');
         label.textContent = op.kind==='door' ? t('doorBtn') : t('windowBtn');
@@ -622,7 +633,7 @@ export default {
       items.forEach((it, idx) => {
         const ft = findType(it.key); const d = effDims(it);
         const colors = it.invalid
-          ? { bg:'var(--bg-danger)', border:'var(--border-danger)', text:'var(--text-danger)' }
+          ? { bg:'var(--canvas-bg-danger)', border:'var(--canvas-border-danger)', text:'var(--canvas-text-danger)' }
           : roleColors(ft.role);
         const div = document.createElement('div');
         div.className = 'rp-furn';
@@ -655,7 +666,7 @@ export default {
           `<span class="rp-idx" title="${t('positionWord')} (${toDisplay(it.x)}, ${toDisplay(it.y)})${UNITS[unit].label}" style="position:absolute;bottom:-3px;left:-3px;min-width:16px;height:16px;padding:0 3px;border-radius:8px;background:var(--surface-1);border:1px solid var(--border-strong);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--text-secondary);z-index:6;pointer-events:none;">${idx+1}</span>`);
 
         const angleBadge = (rotateDrag && rotateDrag.id===it.id)
-          ? `<span style="position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:10px;white-space:nowrap;background:var(--surface-1);color:var(--text-secondary);border:1px solid var(--border-strong);border-radius:4px;padding:1px 4px;z-index:7;">${it.rot}&deg;</span>`
+          ? `<span style="position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:10px;white-space:nowrap;background:var(--surface-1);color:var(--canvas-bg);border:1px solid var(--canvas-highlight);border-radius:4px;padding:1px 4px;z-index:7;">${it.rot}&deg;</span>`
           : '';
         div.insertAdjacentHTML('beforeend',
           `<input type="number" class="rp-angle" data-id="${it.id}" value="${it.rot}" min="0" max="359" step="1"
@@ -750,7 +761,7 @@ export default {
         position:'absolute', boxSizing:'border-box', pointerEvents:'none', zIndex:'1',
         left:Math.round(offsetX)+'px', top:'0px',
         width:Math.round(drawW)+'px', height:Math.round(drawH)+'px',
-        border:'1px dashed var(--border)',
+        border:'1px dashed var(--canvas-line-soft)',
       });
       elevEl.appendChild(frame);
 
@@ -758,7 +769,7 @@ export default {
         const s = document.createElement('span');
         s.textContent = text;
         Object.assign(s.style, {
-          position:'absolute', fontSize:'10px', color:'var(--text-muted)',
+          position:'absolute', fontSize:'10px', color:'var(--canvas-muted)',
           pointerEvents:'none', zIndex:'1', ...css,
         });
         return s;
@@ -789,8 +800,8 @@ export default {
           width:Math.round(width*scale)+'px',
           height:Math.round((ceilY-floorY)*scale)+'px',
         });
-        if (op.kind==='door') { el.style.background = 'var(--door-color)'; el.style.color = '#fff'; }
-        else { el.style.background = 'var(--window-fill)'; el.style.color = 'var(--window-fill-text)'; }
+        if (op.kind==='door') { el.style.background = 'var(--canvas-door-color)'; el.style.color = 'var(--canvas-bg)'; }
+        else { el.style.background = 'var(--canvas-window-fill)'; el.style.color = 'var(--canvas-window-fill-text)'; }
         el.textContent = op.kind==='door' ? t('doorBtn') : t('windowBtn');
         elevEl.appendChild(el);
       });
@@ -817,7 +828,7 @@ export default {
         const ft = findType(it.key);
         const tooTall = it.zH > room.zH;
         const colors = tooTall
-          ? { bg:'var(--bg-danger)', border:'var(--border-danger)', text:'var(--text-danger)' }
+          ? { bg:'var(--canvas-bg-danger)', border:'var(--canvas-border-danger)', text:'var(--canvas-text-danger)' }
           : roleColors(ft.role);
         // 천장(room.zH)보다 높은 가구는 천장선까지만 그려서 프레임을 벗어나지 않게 하고,
         // 대신 빨갛게 표시해 "천장보다 높다"는 걸 알려준다.
