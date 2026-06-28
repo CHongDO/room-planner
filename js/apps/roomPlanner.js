@@ -90,6 +90,8 @@ export default {
       doorBtn:      { ko:'문', en:'Door' },
       windowBtn:    { ko:'창문', en:'Window' },
       openingHint:  { ko:'문/창을 끌면 벽을 따라 이동해요', en:'Drag a door or window to slide it along the wall' },
+      furniturePanelLabel: { ko:'가구 추가', en:'Add furniture' },
+      settingsLabel: { ko:'설정', en:'Settings' },
       usageStatLabel:{ ko:'바닥 활용률', en:'Floor usage' },
       warnStatLabel:{ ko:'경고', en:'Warnings' },
       warnUnit:     { ko:'건', en:'' },
@@ -158,23 +160,60 @@ export default {
 
     // ---- 마크업 ----
     container.innerHTML = `
+      <style>
+        .rp-palette-toggle { display: none; }
+        .rp-settings-toggle { display: none; }
+        .rp-settings-inline { display: contents; } /* row1에 끼워 넣는 span: 데스크탑에선 박스 없이 그대로 펼침 */
+        #roomWrap { padding: 36px; }
+        /* 768px 이하 모바일에서만 레이아웃을 바꾼다. 데스크탑은 기존 그대로. */
+        @media (max-width: 768px) {
+          .rp-main { flex-direction: column; flex-wrap: nowrap; }
+          .rp-canvas-col { order: 1; width: 100%; flex: 1 1 auto; min-width: 0; }
+          .rp-palette-col { order: 2; width: 100%; flex: 1 1 auto; }
+          .rp-palette-toggle {
+            display: flex; width: 100%; align-items: center; justify-content: space-between;
+            margin-bottom: var(--space-2);
+          }
+          #palette.rp-palette-body { display: none; }
+          #palette.rp-palette-body.is-open { display: block; }
+          #roomWrap { width: 100%; box-sizing: border-box; padding: 18px 26px; }
+
+          /* 자주 안 쓰는 설정(단위/언어/토글/개구부)은 "설정" 버튼 뒤로 접어둔다 */
+          .rp-settings-toggle { display: inline-flex; }
+          .rp-settings-inline { display: none; }
+          .rp-settings-fold { display: none; }
+          .rp-settings-open .rp-settings-inline {
+            display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; width: 100%;
+          }
+          .rp-settings-open .rp-settings-fold { display: flex; }
+
+          /* 1차 화면에 남는 버튼들을 한 줄에 더 모이도록 살짝 축소 */
+          .rp-compact-ctl.btn { height: 28px; padding: 0 8px; font-size: var(--font-size-sm); }
+          .rp-compact-ctl.toggle-pill { padding: 4px 8px; font-size: var(--font-size-sm); }
+        }
+      </style>
       <div class="card">
         <div class="row" style="margin-bottom:8px;">
-          <button class="btn" id="shapeRectBtn" data-i18n="shapeRect">사각형</button>
-          <button class="btn" id="shapeLBtn" data-i18n="shapeL">ㄱ자</button>
-          <div class="toggle-pill" id="clearToggle">
-            ${icon('maximize',16)} <span data-i18n="clearLabel">여유 공간</span> <span class="state" id="clearState">ON</span>
-          </div>
-          <div class="toggle-pill" id="snapToggle">
-            ${icon('magnet',16)} <span data-i18n="snapLabel">벽 붙이기</span> <span class="state" id="snapState">ON</span>
-          </div>
-          <span class="muted" style="margin-left:8px;" data-i18n="unitLabel">단위</span>
-          <button class="btn unit-btn" data-unit="cm">cm</button>
-          <button class="btn unit-btn" data-unit="mm">mm</button>
-          <button class="btn unit-btn" data-unit="inch">in</button>
-          <span class="muted" style="margin-left:8px;" data-i18n="langLabel">언어</span>
-          <button class="btn lang-btn" data-lang="ko">한국어</button>
-          <button class="btn lang-btn" data-lang="en">English</button>
+          <button class="btn rp-compact-ctl" id="shapeRectBtn" data-i18n="shapeRect">사각형</button>
+          <button class="btn rp-compact-ctl" id="shapeLBtn" data-i18n="shapeL">ㄱ자</button>
+          <button type="button" class="btn rp-compact-ctl rp-settings-toggle" id="settingsToggle" aria-expanded="false" aria-controls="rpSettingsGroup rpOpeningsRow">
+            ${icon('settings',14)} <span data-i18n="settingsLabel">설정</span> <span class="rp-caret" aria-hidden="true">▾</span>
+          </button>
+          <span class="rp-settings-inline" id="rpSettingsGroup">
+            <div class="toggle-pill rp-compact-ctl" id="clearToggle">
+              ${icon('maximize',16)} <span data-i18n="clearLabel">여유 공간</span> <span class="state" id="clearState">ON</span>
+            </div>
+            <div class="toggle-pill rp-compact-ctl" id="snapToggle">
+              ${icon('magnet',16)} <span data-i18n="snapLabel">벽 붙이기</span> <span class="state" id="snapState">ON</span>
+            </div>
+            <span class="muted" style="margin-left:8px;" data-i18n="unitLabel">단위</span>
+            <button class="btn rp-compact-ctl unit-btn" data-unit="cm">cm</button>
+            <button class="btn rp-compact-ctl unit-btn" data-unit="mm">mm</button>
+            <button class="btn rp-compact-ctl unit-btn" data-unit="inch">in</button>
+            <span class="muted" style="margin-left:8px;" data-i18n="langLabel">언어</span>
+            <button class="btn rp-compact-ctl lang-btn" data-lang="ko">한국어</button>
+            <button class="btn rp-compact-ctl lang-btn" data-lang="en">English</button>
+          </span>
         </div>
 
         <div class="row" style="margin-bottom:8px;">
@@ -192,20 +231,26 @@ export default {
             <input class="input" type="number" id="notchH" value="100" min="50" max="650" step="10" style="width:76px;">
             <span class="muted unit-label">cm</span>
           </span>
-          <button class="btn" id="applyBtn" data-i18n="applyBtn">적용</button>
+          <button class="btn rp-compact-ctl" id="applyBtn" data-i18n="applyBtn">적용</button>
           <span class="muted" id="pyeongLabel" style="margin-left:auto;">약 3.2평</span>
         </div>
 
-        <div class="row" style="margin-bottom:12px; padding:8px; border:1px solid var(--border); border-radius:var(--radius-sm);">
+        <div class="row rp-settings-fold" id="rpOpeningsRow" style="margin-bottom:12px; padding:8px; border:1px solid var(--border); border-radius:var(--radius-sm);">
           <span class="muted" data-i18n="openingsLabel">개구부</span>
-          <button class="btn add-open" data-kind="door">${icon('plus',14)} <span data-i18n="doorBtn">문</span></button>
-          <button class="btn add-open" data-kind="window">${icon('plus',14)} <span data-i18n="windowBtn">창문</span></button>
+          <button class="btn rp-compact-ctl add-open" data-kind="door">${icon('plus',14)} <span data-i18n="doorBtn">문</span></button>
+          <button class="btn rp-compact-ctl add-open" data-kind="window">${icon('plus',14)} <span data-i18n="windowBtn">창문</span></button>
           <span class="muted" data-i18n="openingHint">문/창을 끌면 벽을 따라 이동해요</span>
         </div>
 
-        <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;">
-          <div id="palette" style="flex:0 0 240px;"></div>
-          <div style="flex:1; min-width:260px;">
+        <div class="rp-main" style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;">
+          <div class="rp-palette-col" style="flex:0 0 240px;">
+            <button type="button" class="btn rp-palette-toggle" id="paletteToggle" aria-expanded="false" aria-controls="palette">
+              <span data-i18n="furniturePanelLabel">가구 추가</span>
+              <span class="rp-caret" aria-hidden="true">▾</span>
+            </button>
+            <div id="palette" class="rp-palette-body"></div>
+          </div>
+          <div class="rp-canvas-col" style="flex:1; min-width:260px;">
             <div class="row" style="margin-bottom:8px;">
               <button class="btn view-tab" data-view="plan">${icon('logo',14)} <span data-i18n="viewPlan">위에서 보기</span></button>
               <button class="btn view-tab" data-view="elev">${icon('eye',14)} <span data-i18n="viewElev">정면 보기</span></button>
@@ -217,7 +262,7 @@ export default {
                 <span class="muted" id="elevWallLabel" style="margin-left:8px; font-weight:600;"></span>
               </span>
             </div>
-            <div id="roomWrap" style="position:relative; background:var(--surface-2); border-radius:var(--radius); padding:36px; display:flex; justify-content:center;">
+            <div id="roomWrap" style="position:relative; background:var(--surface-2); border-radius:var(--radius); display:flex; justify-content:center;">
               <div id="rulerLayer" style="position:absolute; left:0; top:0; right:0; bottom:0; pointer-events:none;"></div>
               <span class="plan-wall-label" id="wallLabelTop" style="position:absolute; font-size:10px; color:var(--text-link); cursor:pointer; white-space:nowrap;"></span>
               <span class="plan-wall-label" id="wallLabelBottom" style="position:absolute; font-size:10px; color:var(--text-link); cursor:pointer; white-space:nowrap;"></span>
@@ -243,8 +288,41 @@ export default {
     const elevEl = $('#elev');
     const paletteEl = $('#palette');
 
+    // 모바일 전용 가구 패널 토글(아코디언). 데스크탑 폭에서는 CSS가 always-open으로 덮어쓴다.
+    const paletteToggleBtn = $('#paletteToggle');
+    function setPaletteOpen(open) {
+      paletteEl.classList.toggle('is-open', open);
+      paletteToggleBtn.setAttribute('aria-expanded', String(open));
+      paletteToggleBtn.querySelector('.rp-caret').textContent = open ? '▴' : '▾';
+    }
+    paletteToggleBtn.addEventListener('click', () => setPaletteOpen(!paletteEl.classList.contains('is-open')));
+    setPaletteOpen(false);
+
+    // 모바일 전용 "설정" 아코디언(단위/언어/토글/개구부). 데스크탑에선 CSS가 항상 펼친 상태로 둔다.
+    const settingsToggleBtn = $('#settingsToggle');
+    function setSettingsOpen(open) {
+      container.classList.toggle('rp-settings-open', open);
+      settingsToggleBtn.setAttribute('aria-expanded', String(open));
+      settingsToggleBtn.querySelector('.rp-caret').textContent = open ? '▴' : '▾';
+    }
+    settingsToggleBtn.addEventListener('click', () => setSettingsOpen(!container.classList.contains('rp-settings-open')));
+    setSettingsOpen(false);
+
+    // 좁은 화면(768px 이하)에선 줄자 폰트/여백을 줄여 캔버스 안에 더 깔끔히 들어오게 한다.
+    const isCompactUI = () => window.innerWidth <= 768;
+
     // ---- 기하/유틸 ----
-    const getScale = () => Math.min(MAX_W/room.w, MAX_H/room.h);
+    // 평면 캔버스가 쓸 수 있는 실제 가로 폭(모바일처럼 #roomWrap이 MAX_W보다
+    // 좁을 때 그 폭에 맞춰 줌). 이 폭이 없으면(첫 렌더 전) MAX_W로 대체.
+    function getPlanAvailWidth() {
+      const wrap = $('#roomWrap');
+      if (!wrap) return MAX_W;
+      const cs = getComputedStyle(wrap);
+      const pad = (parseFloat(cs.paddingLeft)||0) + (parseFloat(cs.paddingRight)||0);
+      const w = wrap.clientWidth - pad;
+      return w > 0 ? Math.min(w, MAX_W) : MAX_W;
+    }
+    const getScale = () => Math.min(getPlanAvailWidth()/room.w, MAX_H/room.h);
     const findType = (key) => FURNITURE_TYPES.find((f) => f.key === key);
     const rotatePoint = (x, y, deg) => {
       const r = deg*Math.PI/180, c = Math.cos(r), s = Math.sin(r);
@@ -396,9 +474,21 @@ export default {
       Object.assign(el.style, { position:'absolute', fontSize:'8px', color:'var(--text-muted)', whiteSpace:'nowrap', ...style });
       layer.appendChild(el);
     }
+    // 좁은 화면에서는 줄자 눈금/숫자 크기와 여백을 줄여 캔버스 폭 안에 더 깔끔히 들어오게 한다.
+    function rulerGeom() {
+      const compact = isCompactUI();
+      return {
+        tickLen: compact ? 4 : 6,
+        outerGap: compact ? 11 : 16,   // 가로 줄자: 위쪽 라벨이 캔버스 가장자리에서 떨어진 거리
+        innerGap: compact ? 5 : 8,     // 가로 줄자: 아래쪽 라벨이 눈금에서 떨어진 거리
+        sideGap: compact ? 6 : 9,      // 세로 줄자: 라벨이 눈금에서 떨어진 거리
+        fontSize: compact ? '7px' : '8px',
+      };
+    }
     // 평면 뷰: 방 박스 네 변 바깥쪽에 가로·세로 줄자(눈금+숫자)를 그린다.
     function renderPlanRulerInto(layer) {
       const scale = getScale();
+      const g = rulerGeom();
       const L = roomEl.offsetLeft, T = roomEl.offsetTop, W = roomEl.offsetWidth, H = roomEl.offsetHeight;
       const stepWDisp = niceTickStep(toDisplay(room.w), 7);
       const stepHDisp = niceTickStep(toDisplay(room.h), 7);
@@ -406,18 +496,18 @@ export default {
       for (let k=0; k*stepWCm <= room.w+0.001; k++) {
         const x = L + Math.round(k*stepWCm*scale);
         const label = k===0 ? `0${UNITS[unit].label}` : fmtTick(k*stepWDisp);
-        mkRulerTick(layer,  { left:x+'px', top:(T-6)+'px',   width:'1px', height:'6px' });
-        mkRulerLabel(layer, label, { left:x+'px', top:(T-16)+'px',  transform:'translateX(-50%)' });
-        mkRulerTick(layer,  { left:x+'px', top:(T+H)+'px',   width:'1px', height:'6px' });
-        mkRulerLabel(layer, label, { left:x+'px', top:(T+H+8)+'px', transform:'translateX(-50%)' });
+        mkRulerTick(layer,  { left:x+'px', top:(T-g.tickLen)+'px',   width:'1px', height:g.tickLen+'px' });
+        mkRulerLabel(layer, label, { left:x+'px', top:(T-g.outerGap)+'px',  transform:'translateX(-50%)', fontSize:g.fontSize });
+        mkRulerTick(layer,  { left:x+'px', top:(T+H)+'px',   width:'1px', height:g.tickLen+'px' });
+        mkRulerLabel(layer, label, { left:x+'px', top:(T+H+g.innerGap)+'px', transform:'translateX(-50%)', fontSize:g.fontSize });
       }
       for (let k=1; k*stepHCm <= room.h+0.001; k++) {
         const y = T + Math.round(k*stepHCm*scale);
         const label = fmtTick(k*stepHDisp);
-        mkRulerTick(layer,  { left:(L-6)+'px', top:y+'px', width:'6px', height:'1px' });
-        mkRulerLabel(layer, label, { left:(L-9)+'px', top:y+'px', transform:'translate(-100%,-50%)' });
-        mkRulerTick(layer,  { left:(L+W)+'px', top:y+'px', width:'6px', height:'1px' });
-        mkRulerLabel(layer, label, { left:(L+W+9)+'px', top:y+'px', transform:'translate(0,-50%)' });
+        mkRulerTick(layer,  { left:(L-g.tickLen)+'px', top:y+'px', width:g.tickLen+'px', height:'1px' });
+        mkRulerLabel(layer, label, { left:(L-g.sideGap)+'px', top:y+'px', transform:'translate(-100%,-50%)', fontSize:g.fontSize });
+        mkRulerTick(layer,  { left:(L+W)+'px', top:y+'px', width:g.tickLen+'px', height:'1px' });
+        mkRulerLabel(layer, label, { left:(L+W+g.sideGap)+'px', top:y+'px', transform:'translate(0,-50%)', fontSize:g.fontSize });
       }
     }
     // 정면 뷰: 캔버스(흰 영역) 바깥쪽에 가로(벽 폭)·세로(바닥~천장) 줄자를 그린다.
@@ -425,6 +515,7 @@ export default {
     function renderElevRulerInto(layer) {
       if (!lastElevLayout) return;
       const { scale, offsetX, horiz } = lastElevLayout;
+      const g = rulerGeom();
       const L = elevEl.offsetLeft, T = elevEl.offsetTop, W = elevEl.offsetWidth, H = elevEl.offsetHeight;
       const drawLeft = L + offsetX;
       const stepHorizDisp = niceTickStep(toDisplay(horiz), 7);
@@ -432,16 +523,16 @@ export default {
       for (let k=0; k*stepHorizCm <= horiz+0.001; k++) {
         const x = drawLeft + Math.round(k*stepHorizCm*scale);
         const label = k===0 ? `0${UNITS[unit].label}` : fmtTick(k*stepHorizDisp);
-        mkRulerTick(layer,  { left:x+'px', top:(T+H)+'px',   width:'1px', height:'6px' });
-        mkRulerLabel(layer, label, { left:x+'px', top:(T+H+8)+'px', transform:'translateX(-50%)' });
+        mkRulerTick(layer,  { left:x+'px', top:(T+H)+'px',   width:'1px', height:g.tickLen+'px' });
+        mkRulerLabel(layer, label, { left:x+'px', top:(T+H+g.innerGap)+'px', transform:'translateX(-50%)', fontSize:g.fontSize });
       }
       const stepZDisp = niceTickStep(toDisplay(room.zH), 6);
       const stepZCm = fromDisplay(stepZDisp);
       for (let k=0; k*stepZCm < room.zH-0.001; k++) {
         const y = T + H - Math.round(k*stepZCm*scale);
         const label = k===0 ? `0${UNITS[unit].label}` : fmtTick(k*stepZDisp);
-        mkRulerTick(layer,  { left:(L-6)+'px', top:y+'px', width:'6px', height:'1px' });
-        mkRulerLabel(layer, label, { left:(L-9)+'px', top:y+'px', transform:'translate(-100%,-50%)' });
+        mkRulerTick(layer,  { left:(L-g.tickLen)+'px', top:y+'px', width:g.tickLen+'px', height:'1px' });
+        mkRulerLabel(layer, label, { left:(L-g.sideGap)+'px', top:y+'px', transform:'translate(-100%,-50%)', fontSize:g.fontSize });
       }
     }
     function positionRulers() {
@@ -984,13 +1075,16 @@ export default {
       Object.values(labels).forEach((el) => { el.style.display = show ? 'block' : 'none'; });
       if (!show) return;
       Object.keys(labels).forEach((wallKey) => { labels[wallKey].textContent = wallLabelText(wallKey); });
-      // 줄자 눈금(숫자)이 방 바깥쪽 0~16px(상하)/0~26px(좌우) 띠를 쓰므로,
-      // 벽 라벨은 그보다 더 바깥쪽에 둬서 겹치지 않게 한다.
+      // 줄자 눈금(숫자)이 방 바깥쪽에 띠를 쓰므로, 벽 라벨은 그보다 더 바깥쪽에 둬서 겹치지 않게 한다.
+      // 좁은 화면에선 줄자 자체가 줄어드므로 벽 라벨 거리/글자도 함께 줄인다.
+      const compact = isCompactUI();
+      const topBottomGap = compact ? 16 : 26, leftRightGap = compact ? 22 : 34;
+      const fontSize = compact ? '9px' : '10px';
       const L = roomEl.offsetLeft, T = roomEl.offsetTop, W = roomEl.offsetWidth, H = roomEl.offsetHeight;
-      Object.assign(labels.top.style,    { left:(L+W/2)+'px', top:(T-26)+'px',   transform:'translate(-50%,-100%)' });
-      Object.assign(labels.bottom.style, { left:(L+W/2)+'px', top:(T+H+26)+'px', transform:'translate(-50%,0)' });
-      Object.assign(labels.left.style,   { left:(L-34)+'px',  top:(T+H/2)+'px',  transform:'translate(-100%,-50%)' });
-      Object.assign(labels.right.style,  { left:(L+W+34)+'px',top:(T+H/2)+'px',  transform:'translate(0,-50%)' });
+      Object.assign(labels.top.style,    { left:(L+W/2)+'px', top:(T-topBottomGap)+'px',   transform:'translate(-50%,-100%)', fontSize });
+      Object.assign(labels.bottom.style, { left:(L+W/2)+'px', top:(T+H+topBottomGap)+'px', transform:'translate(-50%,0)', fontSize });
+      Object.assign(labels.left.style,   { left:(L-leftRightGap)+'px',  top:(T+H/2)+'px',  transform:'translate(-100%,-50%)', fontSize });
+      Object.assign(labels.right.style,  { left:(L+W+leftRightGap)+'px',top:(T+H/2)+'px',  transform:'translate(0,-50%)', fontSize });
     }
     Object.entries({ Top:'top', Bottom:'bottom', Left:'left', Right:'right' }).forEach(([elName, wallKey]) => {
       $(`#wallLabel${elName}`).addEventListener('click', () => goToElevWall(wallKey));
@@ -1072,5 +1166,14 @@ export default {
     applyLangToStaticUI();
     renderPalette();
     setView('plan');
+
+    // 창 크기/회전 변경 시(모바일↔데스크탑 폭 전환 포함) 캔버스 폭 기준으로 다시 스케일링
+    let resizeRAF = null;
+    function onResize() {
+      if (resizeRAF) return;
+      resizeRAF = requestAnimationFrame(() => { resizeRAF = null; renderRoom(); });
+    }
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   },
 };
