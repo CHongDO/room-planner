@@ -11,6 +11,7 @@
    ============================================================ */
 
 import { icon } from '../icons.js';
+import { roomState } from '../roomState.js';
 
 export default {
   id: 'room',
@@ -30,17 +31,12 @@ export default {
       { key:'custom',   ic:'shapes',   w:100, h:60,  zH:150, role:'neutral', clr:{}, customShape:true },
     ];
 
-    // ---- 상태 ----
-    let room = { shape:'rect', w:300, h:350, notchW:100, notchH:100, zH:240 };
-    let items = [
-      { id:1, key:'bed',  w:110, h:200, zH:45, clrFront:0,  clrSide:40, x:10,  y:10,  rot:0, shape:'rect' },
-      { id:2, key:'desk', w:120, h:60,  zH:75, clrFront:70, clrSide:0,  x:140, y:280, rot:0, shape:'rect' },
-    ];
-    let openings = [
-      { id:101, kind:'door',   wall:'bottom', pos:0.5, len:90,  sill:0,  zH:200 },
-      { id:102, kind:'window', wall:'top',    pos:0.6, len:120, sill:90, zH:120 },
-    ];
-    let nextId = 3, nextOpenId = 103;
+    // ---- 상태 (탭 전환 후 재마운트 시 roomState에서 복원, 첫 로드는 roomState 기본값 사용) ----
+    let room     = { ...roomState.room };
+    let items    = roomState.items.map((it) => ({ ...it }));
+    let openings = roomState.openings.map((op) => ({ ...op }));
+    let nextId      = (items.length    > 0 ? Math.max(...items.map((it) => it.id))    : 0)   + 1;
+    let nextOpenId  = (openings.length > 0 ? Math.max(...openings.map((op) => op.id)) : 100) + 1;
     let dragState = null, openDrag = null, rotateDrag = null;
     let showClear = true, snapOn = true;
     let view = 'plan', elevWall = 'bottom';
@@ -694,6 +690,7 @@ export default {
       positionWallLabels();
       renderElev();
       positionRulers();
+      roomState.room = room; roomState.items = items; roomState.openings = openings;
     }
 
     function mkZone(cr, scale) {
@@ -1172,7 +1169,7 @@ export default {
     });
 
     // ---- 초기화 ----
-    setShape('rect');
+    setShape(room.shape);
     applyUnitToStaticUI();
     applyLangToStaticUI();
     renderPalette();

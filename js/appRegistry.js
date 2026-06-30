@@ -11,10 +11,12 @@
    ============================================================ */
 
 import roomPlanner from './apps/roomPlanner.js';
+import room3d from './apps/room3d.js';
 // import sunlight from './apps/sunlight.js';   // 예) 다음 기능
 
 export const apps = [
   roomPlanner,
+  room3d,
   // sunlight,
 ];
 
