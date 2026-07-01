@@ -76,8 +76,8 @@
 
   /* ---- 타이포그래피 ---- */
   --font-ui: "Segoe UI", Tahoma, "맑은 고딕", "Malgun Gothic", system-ui, sans-serif;
-  --font-size: 14px;
-  --font-size-sm: 12px;
+  --font-size: 15px;
+  --font-size-sm: 13px;
 
   /* ---- 간격 ---- */
   --space-1: 4px;

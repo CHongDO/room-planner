@@ -37,8 +37,10 @@ export default {
     let openings = roomState.openings.map((op) => ({ ...op }));
     let nextId      = (items.length    > 0 ? Math.max(...items.map((it) => it.id))    : 0)   + 1;
     let nextOpenId  = (openings.length > 0 ? Math.max(...openings.map((op) => op.id)) : 100) + 1;
-    let dragState = null, openDrag = null, rotateDrag = null;
-    let showClear = true, snapOn = true;
+    let dragState = null, openDrag = null, rotateDrag = null, resizeDrag = null;
+    let showClear = roomState.showClear ?? true;
+    let snapOn    = roomState.snapOn    ?? true;
+    let selectedId = null, selectedKind = null; // 'furn' | 'opening' | null
     let view = 'plan', elevWall = 'bottom';
     let lastElevLayout = null; // renderElev()가 채워두는 {scale, offsetX, horiz} - 줄자 계산용
     const SNAP = 12, DOOR_CLR = 90, WIN_CLR = 40;
@@ -50,7 +52,7 @@ export default {
       mm:   { label:'mm', factor:10,     decimals:0 },
       inch: { label:'in', factor:1/2.54, decimals:1 },
     };
-    let unit = 'cm';
+    let unit = roomState.unit || 'cm';
     function toDisplay(cmVal) {
       const u = UNITS[unit], f = 10**u.decimals;
       return Math.round((cmVal||0)*u.factor*f)/f;
@@ -69,7 +71,7 @@ export default {
     }
 
     // ---- 언어(i18n) ----
-    let lang = 'ko';
+    let lang = roomState.lang || 'ko';
     const STR = {
       shapeRect:    { ko:'사각형', en:'Rectangle' },
       shapeL:       { ko:'ㄱ자',   en:'L-shape' },
@@ -147,6 +149,13 @@ export default {
       shape_rect:    { ko:'사각형', en:'Rectangle' },
       shape_circle:  { ko:'원', en:'Circle' },
       shape_triangle:{ ko:'삼각형', en:'Triangle' },
+      warnNotch:     { ko:'ㄱ자 잘린 영역에 있습니다', en:'Item is in the notch area' },
+      warnBlockDoor: { ko:'문 여는 공간이 막혀 있습니다', en:'Blocking door swing space' },
+      warnBlockWin:  { ko:'창문 채광을 가리고 있습니다', en:'Blocking window light' },
+      warnClrOverlap:{ ko:'다른 가구와 겹칩니다', en:'Clearance overlaps another item' },
+      warnClrNotch:  { ko:'여유 공간이 잘린 영역에 걸립니다', en:'Clearance extends into notch area' },
+      lenLabel:      { ko:'폭', en:'W' },
+      sillShort:     { ko:'틀', en:'Sill' },
     };
     function t(key) {
       const e = STR[key];
@@ -160,7 +169,7 @@ export default {
         .rp-palette-toggle { display: none; }
         .rp-settings-toggle { display: none; }
         .rp-settings-inline { display: contents; } /* row1에 끼워 넣는 span: 데스크탑에선 박스 없이 그대로 펼침 */
-        #roomWrap { padding: 36px; }
+        #roomWrap { padding: 36px; position: relative; }
         /* 방 그리는 영역(#room, #elev)만 다크 블루프린트. 바깥(roomWrap·줄자·툴바)은 라이트 유지. */
         .rp-canvas-surface {
           background-color: var(--canvas-bg);
@@ -292,6 +301,28 @@ export default {
     const roomEl = $('#room');
     const elevEl = $('#elev');
     const paletteEl = $('#palette');
+    const roomWrapEl = $('#roomWrap');
+
+    // 경고 툴팁 (feature 2): roomWrap에 추가 → renderRoom()이 roomEl 초기화해도 유지
+    const tooltipEl = document.createElement('div');
+    Object.assign(tooltipEl.style, {
+      position:'absolute', zIndex:'30', pointerEvents:'none',
+      background:'var(--text)', color:'var(--surface-1)',
+      borderRadius:'6px', padding:'6px 10px', fontSize:'12px', lineHeight:'1.6',
+      maxWidth:'190px', whiteSpace:'pre-line', display:'none',
+      boxShadow:'0 2px 8px rgba(0,0,0,0.4)',
+    });
+    roomWrapEl.appendChild(tooltipEl);
+
+    function showTooltip(text, anchorEl) {
+      tooltipEl.textContent = text;
+      tooltipEl.style.display = 'block';
+      const aRect = anchorEl.getBoundingClientRect();
+      const wRect = roomWrapEl.getBoundingClientRect();
+      tooltipEl.style.left = Math.max(4, aRect.left - wRect.left - 4) + 'px';
+      tooltipEl.style.top  = (aRect.bottom - wRect.top + 4) + 'px';
+    }
+    function hideTooltip() { tooltipEl.style.display = 'none'; }
 
     // 모바일 전용 가구 패널 토글(아코디언). 데스크탑 폭에서는 CSS가 always-open으로 덮어쓴다.
     const paletteToggleBtn = $('#paletteToggle');
@@ -338,6 +369,19 @@ export default {
       const c = Math.abs(Math.cos(r)), s = Math.abs(Math.sin(r));
       return { w: it.w*c + it.h*s, h: it.w*s + it.h*c };
     };
+    // 핸들 방향과 현재 회전을 고려해 적절한 리사이즈 cursor 값을 반환
+    function handleCursor(handle, rotDeg) {
+      const base = { n:270, s:90, e:0, w:180, ne:315, nw:225, se:45, sw:135 };
+      const a = ((base[handle]||0) + rotDeg + 360) % 360;
+      if (a < 22.5 || a >= 337.5) return 'e-resize';
+      if (a < 67.5)  return 'se-resize';
+      if (a < 112.5) return 's-resize';
+      if (a < 157.5) return 'sw-resize';
+      if (a < 202.5) return 'w-resize';
+      if (a < 247.5) return 'nw-resize';
+      if (a < 292.5) return 'n-resize';
+      return 'ne-resize';
+    }
     // 가구 중심 기준 로컬 사각형(lx,ly,lw,lh)을 it.rot만큼 회전했을 때
     // 충돌판정용 바운딩박스(aabb)와 표시용 중심좌표(render)를 계산
     function localRectToWorld(cx, cy, lx, ly, lw, lh, rotDeg) {
@@ -419,22 +463,28 @@ export default {
     function computeFlags() {
       const bodies = items.map((it) => { const d = effDims(it); return { id:it.id, x:it.x, y:it.y, w:d.w, h:d.h }; });
       let blockDoor = false, blockWin = false;
-      items.forEach((it) => { it.invalid = false; it.clrWarn = false; });
+      items.forEach((it) => { it.invalid = false; it.clrWarn = false; it._warnings = []; });
       items.forEach((it) => {
         const d = effDims(it); const body = { x:it.x, y:it.y, w:d.w, h:d.h };
-        if (inNotch(body)) it.invalid = true;
+        if (inNotch(body)) { it.invalid = true; it._warnings.push('warnNotch'); }
         bodies.forEach((b) => { if (b.id!==it.id && overlap(body,b)) it.invalid = true; });
         openings.forEach((op) => {
           const cr = openingClearRect(op);
           if (!overlap(body, cr)) return;
-          if (op.kind==='door') { it.invalid = true; blockDoor = true; return; }
+          if (op.kind==='door') { it.invalid = true; blockDoor = true; it._warnings.push('warnBlockDoor'); return; }
           // 창문: 가구 높이가 창틀(sill)보다 낮으면 채광을 가리지 않음
-          if (it.zH > (op.sill||0)) { it.invalid = true; blockWin = true; }
+          if (it.zH > (op.sill||0)) { it.invalid = true; blockWin = true; it._warnings.push('warnBlockWin'); }
         });
         clearanceRects(it).forEach((piece) => {
           const cr = piece.aabb;
-          bodies.forEach((b) => { if (b.id!==it.id && overlap(cr,b)) it.clrWarn = true; });
-          if (inNotch(cr)) it.clrWarn = true;
+          bodies.forEach((b) => {
+            if (b.id!==it.id && overlap(cr,b) && !it._warnings.includes('warnClrOverlap')) {
+              it.clrWarn = true; it._warnings.push('warnClrOverlap');
+            }
+          });
+          if (inNotch(cr) && !it._warnings.includes('warnClrNotch')) {
+            it.clrWarn = true; it._warnings.push('warnClrNotch');
+          }
         });
       });
       return { blockDoor, blockWin };
@@ -489,7 +539,7 @@ export default {
         outerGap: compact ? 11 : 16,   // 가로 줄자: 위쪽 라벨이 캔버스 가장자리에서 떨어진 거리
         innerGap: compact ? 5 : 8,     // 가로 줄자: 아래쪽 라벨이 눈금에서 떨어진 거리
         sideGap: compact ? 6 : 9,      // 세로 줄자: 라벨이 눈금에서 떨어진 거리
-        fontSize: compact ? '7px' : '8px',
+        fontSize: compact ? '8px' : '9px',
       };
     }
     // 평면 뷰: 방 박스 네 변 바깥쪽에 가로·세로 줄자(눈금+숫자)를 그린다.
@@ -596,6 +646,7 @@ export default {
       // 개구부 본체
       openings.forEach((op) => {
         const g = openingGeom(op);
+        const isSel = selectedId===op.id && selectedKind==='opening';
         const el = document.createElement('div');
         el.className = 'rp-opening';
         Object.assign(el.style, {
@@ -604,6 +655,8 @@ export default {
           zIndex:'3', cursor:'pointer', touchAction:'none',
           left:Math.round(g.x*scale)+'px', top:Math.round(g.y*scale)+'px',
           width:Math.round(g.w*scale)+'px', height:Math.round(g.h*scale)+'px',
+          outline: isSel ? '2px solid var(--canvas-highlight)' : '',
+          outlineOffset: isSel ? '1px' : '',
         });
         if (op.kind==='door') { el.style.background = 'var(--canvas-door-color)'; el.style.color = 'var(--canvas-bg)'; }
         else { el.style.background = 'var(--canvas-window-fill)'; el.style.color = 'var(--canvas-window-fill-text)'; }
@@ -612,22 +665,20 @@ export default {
         label.textContent = op.kind==='door' ? t('doorBtn') : t('windowBtn');
         if (op.wall==='left' || op.wall==='right') label.style.transform = 'rotate(90deg)';
         el.appendChild(label);
+        // 삭제 버튼: 선택 시에만 표시 (feature 3)
         el.insertAdjacentHTML('beforeend',
-          `<span class="rp-rm" data-action="rm" title="${t('deleteTitle')}" style="position:absolute;top:-8px;right:-8px;width:16px;height:16px;border-radius:50%;background:var(--surface-1);border:1px solid var(--border-strong);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:7;">${icon('close',10)}</span>`);
-        if (op.kind==='window') {
-          const sillAttr = convAttr(0, 250, 5);
-          el.insertAdjacentHTML('beforeend',
-            `<input type="number" class="rp-sill" data-open-id="${op.id}" value="${toDisplay(op.sill||0)}" min="${sillAttr.min}" max="${sillAttr.max}" step="${sillAttr.step}"
-               title="${t('sillTitle').replace('{u}', UNITS[unit].label)}"
-               style="position:absolute;top:-22px;left:50%;transform:translateX(-50%);width:60px;height:18px;font-size:10px;text-align:center;padding:0 2px;border:1px solid var(--border-strong);border-radius:4px;background:var(--surface-1);color:var(--text-secondary);z-index:6;">`);
-        }
+          `<span class="rp-rm" data-action="rm" title="${t('deleteTitle')}" style="position:absolute;top:-8px;right:-8px;width:16px;height:16px;border-radius:50%;background:var(--surface-1);border:1px solid var(--border-strong);display:${isSel?'flex':'none'};align-items:center;justify-content:center;cursor:pointer;z-index:7;">${icon('close',10)}</span>`);
         roomEl.appendChild(el);
       });
+      // 선택된 개구부 치수 편집 패널 (features 1+3)
+      if (selectedKind==='opening' && selectedId!==null) renderOpenPanel(selectedId);
 
       // 가구 본체: 바깥 래퍼는 회전하지 않는 바운딩박스(회전/삭제 버튼 위치 고정용)이고
       // 안쪽 body만 실제 각도와 모양(사각/원/삼각)으로 표시한다.
       items.forEach((it, idx) => {
         const ft = findType(it.key); const d = effDims(it);
+        const isSel = selectedId===it.id && selectedKind==='furn';
+        const hd = isSel ? '' : 'none'; // handle display
         const colors = it.invalid
           ? { bg:'var(--canvas-bg-danger)', border:'var(--canvas-border-danger)', text:'var(--canvas-text-danger)' }
           : roleColors(ft.role);
@@ -641,17 +692,20 @@ export default {
         div.dataset.id = it.id;
 
         const body = document.createElement('div');
+        body.className = 'rp-body';
         Object.assign(body.style, {
           position:'absolute', display:'flex', flexDirection:'column',
           alignItems:'center', justifyContent:'center', gap:'2px',
           cursor:'grab', touchAction:'none', userSelect:'none',
-          fontSize:'11px', lineHeight:'1.2', textAlign:'center', padding:'2px',
+          fontSize:'12px', lineHeight:'1.2', textAlign:'center', padding:'2px',
           boxSizing:'border-box', overflow:'hidden',
           left:Math.round((d.w-it.w)/2*scale)+'px', top:Math.round((d.h-it.h)/2*scale)+'px',
           width:Math.round(it.w*scale)+'px', height:Math.round(it.h*scale)+'px',
           transform:`rotate(${it.rot}deg)`,
           background:colors.bg, color:colors.text,
           border:`${it.invalid?'1.5px':'1px'} solid ${colors.border}`,
+          outline: isSel ? '2px solid var(--canvas-highlight)' : 'none',
+          outlineOffset: '1px',
           ...shapeStyle(it.shape),
         });
         body.innerHTML = `${icon(ft.ic,16)}<span>${furnName(ft.key).replace(/\(.*?\)/,'')}</span>`;
@@ -659,18 +713,64 @@ export default {
         div.appendChild(body);
 
         div.insertAdjacentHTML('beforeend',
-          `<span class="rp-idx" title="${t('positionWord')} (${toDisplay(it.x)}, ${toDisplay(it.y)})${UNITS[unit].label}" style="position:absolute;bottom:-3px;left:-3px;min-width:16px;height:16px;padding:0 3px;border-radius:8px;background:var(--surface-1);border:1px solid var(--border-strong);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--text-secondary);z-index:6;pointer-events:none;">${idx+1}</span>`);
+          `<span class="rp-idx" title="${t('positionWord')} (${toDisplay(it.x)}, ${toDisplay(it.y)})${UNITS[unit].label}" style="position:absolute;bottom:-3px;left:-3px;min-width:16px;height:16px;padding:0 3px;border-radius:8px;background:var(--surface-1);border:1px solid var(--border-strong);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--text-secondary);z-index:6;pointer-events:none;">${idx+1}</span>`);
+
+        // 경고 배지: 문제 있는 가구에만 표시, 호버/탭 시 툴팁 (feature 2)
+        if (it.invalid || it.clrWarn) {
+          const warnings = (it._warnings || []).map((k) => t(k)).join('\n');
+          const badge = document.createElement('span');
+          badge.className = 'rp-warn';
+          Object.assign(badge.style, {
+            position:'absolute', bottom:'-3px', right:'-3px',
+            width:'16px', height:'16px', borderRadius:'50%',
+            background:'var(--canvas-border-danger)', color:'var(--surface-1)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            fontSize:'10px', fontWeight:'700', zIndex:'6', cursor:'pointer', userSelect:'none',
+          });
+          badge.textContent = '!';
+          badge.addEventListener('mouseenter', () => showTooltip(warnings, badge));
+          badge.addEventListener('mouseleave', hideTooltip);
+          badge.addEventListener('click', (e) => {
+            e.stopPropagation();
+            tooltipEl.style.display !== 'none' ? hideTooltip() : showTooltip(warnings, badge);
+          });
+          div.appendChild(badge);
+        }
 
         const angleBadge = (rotateDrag && rotateDrag.id===it.id)
           ? `<span style="position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:10px;white-space:nowrap;background:var(--surface-1);color:var(--canvas-bg);border:1px solid var(--canvas-highlight);border-radius:4px;padding:1px 4px;z-index:7;">${it.rot}&deg;</span>`
           : '';
+        // 조작 핸들: 선택 시에만 표시 (feature 3)
         div.insertAdjacentHTML('beforeend',
           `<input type="number" class="rp-angle" data-id="${it.id}" value="${it.rot}" min="0" max="359" step="1"
              title="${t('angleTitle')}"
-             style="position:absolute;top:-22px;left:50%;transform:translateX(-50%);width:52px;height:18px;font-size:10px;text-align:center;padding:0 2px;border:1px solid var(--border-strong);border-radius:4px;background:var(--surface-1);color:var(--text-secondary);z-index:6;">` +
-          `<span class="rp-rot" data-action="rot" title="${t('rotateTitle')}" style="position:absolute;top:-3px;left:-3px;width:18px;height:18px;border-radius:50%;background:var(--surface-1);border:1px solid var(--border-strong);display:flex;align-items:center;justify-content:center;cursor:grab;z-index:6;">${icon('rotate',11)}</span>` +
-          `<span class="rp-rm" data-action="rm" title="${t('deleteTitle')}" style="position:absolute;top:-3px;right:-3px;width:18px;height:18px;border-radius:50%;background:var(--surface-1);border:1px solid var(--border-strong);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:6;">${icon('close',11)}</span>` +
+             style="position:absolute;top:-22px;left:50%;transform:translateX(-50%);width:52px;height:18px;font-size:11px;text-align:center;padding:0 2px;border:1px solid var(--border-strong);border-radius:4px;background:var(--surface-1);color:var(--text-secondary);z-index:6;display:${hd};">` +
+          `<span class="rp-rot" data-action="rot" title="${t('rotateTitle')}" style="position:absolute;top:-3px;left:-3px;width:18px;height:18px;border-radius:50%;background:var(--surface-1);border:1px solid var(--border-strong);display:${hd==='none'?'none':'flex'};align-items:center;justify-content:center;cursor:grab;z-index:6;">${icon('rotate',11)}</span>` +
+          `<span class="rp-rm" data-action="rm" title="${t('deleteTitle')}" style="position:absolute;top:-3px;right:-3px;width:18px;height:18px;border-radius:50%;background:var(--surface-1);border:1px solid var(--border-strong);display:${hd==='none'?'none':'flex'};align-items:center;justify-content:center;cursor:pointer;z-index:6;">${icon('close',11)}</span>` +
           angleBadge);
+
+        // 리사이즈 핸들: 선택 시 8방향, 실제 회전된 모서리/변 위치에 배치 (feature A)
+        if (isSel) {
+          const RSHANDLES = [
+            { h:'nw',lx:-0.5,ly:-0.5 },{ h:'n',lx:0,ly:-0.5 },{ h:'ne',lx:0.5,ly:-0.5 },
+            { h:'w', lx:-0.5,ly:0    },                         { h:'e', lx:0.5,ly:0     },
+            { h:'sw',lx:-0.5,ly:0.5  },{ h:'s',lx:0,ly:0.5  },{ h:'se',lx:0.5,ly:0.5   },
+          ];
+          let rszHtml = '';
+          RSHANDLES.forEach(({ h, lx, ly }) => {
+            const wp = rotatePoint(lx*it.w, ly*it.h, it.rot);
+            const px = Math.round((d.w/2 + wp.x)*scale);
+            const py = Math.round((d.h/2 + wp.y)*scale);
+            const corner = h.length===2;
+            const cur = handleCursor(h, it.rot);
+            rszHtml += `<div class="rp-rsz" data-action="rsz" data-handle="${h}" style="position:absolute;z-index:7;left:${px-5}px;top:${py-5}px;width:10px;height:10px;background:${corner?'var(--canvas-highlight)':'var(--surface-1)'};border:1.5px solid ${corner?'var(--canvas-bg)':'var(--canvas-highlight)'};border-radius:${corner?'2px':'50%'};cursor:${cur};touch-action:none;"></div>`;
+          });
+          div.insertAdjacentHTML('beforeend', rszHtml);
+        }
+        // 리사이즈 중 실시간 치수 라벨 (feature A) - 드래그 중에만 표시
+        if (resizeDrag && resizeDrag.id===it.id) {
+          div.insertAdjacentHTML('beforeend', `<div style="position:absolute;top:-42px;left:50%;transform:translateX(-50%);font-size:12px;font-weight:700;white-space:nowrap;background:var(--canvas-highlight);color:var(--canvas-bg);border-radius:4px;padding:2px 8px;z-index:8;pointer-events:none;">${toDisplay(it.w)} × ${toDisplay(it.h)} ${UNITS[unit].label}</div>`);
+        }
         roomEl.appendChild(div);
       });
 
@@ -881,21 +981,21 @@ export default {
              <span class="muted" style="font-size:10px;">${t('unitCaptionPrefix')}${uLabel}</span>
            </div>
            <div style="display:flex;align-items:center;gap:4px;">
-             <input class="input dim-w" type="number" value="${toDisplay(ft.w)}" min="${dimAttr.min}" max="${dimAttr.max}" step="${dimAttr.step}" style="width:54px;height:28px;font-size:12px;padding:2px 4px;" title="${t('widthLabel')}(${uLabel})">
+             <input class="input dim-w" type="number" value="${toDisplay(ft.w)}" min="${dimAttr.min}" max="${dimAttr.max}" step="${dimAttr.step}" style="width:54px;height:30px;font-size:13px;padding:2px 4px;" title="${t('widthLabel')}(${uLabel})">
              <span class="muted">×</span>
-             <input class="input dim-h" type="number" value="${toDisplay(ft.h)}" min="${dimAttr.min}" max="${dimAttr.max}" step="${dimAttr.step}" style="width:54px;height:28px;font-size:12px;padding:2px 4px;" title="${t('depthLabel')}(${uLabel})">
+             <input class="input dim-h" type="number" value="${toDisplay(ft.h)}" min="${dimAttr.min}" max="${dimAttr.max}" step="${dimAttr.step}" style="width:54px;height:30px;font-size:13px;padding:2px 4px;" title="${t('depthLabel')}(${uLabel})">
              <span class="muted">×</span>
-             <input class="input dim-z" type="number" value="${toDisplay(ft.zH)}" min="${heightAttr.min}" max="${heightAttr.max}" step="${heightAttr.step}" style="width:54px;height:28px;font-size:12px;padding:2px 4px;" title="${t('heightWord')}(${uLabel})">
+             <input class="input dim-z" type="number" value="${toDisplay(ft.zH)}" min="${heightAttr.min}" max="${heightAttr.max}" step="${heightAttr.step}" style="width:54px;height:30px;font-size:13px;padding:2px 4px;" title="${t('heightWord')}(${uLabel})">
            </div>
            <div style="display:flex;align-items:center;gap:4px;">
              <label class="muted" style="font-size:11px;" title="${t('frontClrLabel')}(${uLabel})">${t('frontClrLabel')}</label>
-             <input class="input clr-front" type="number" value="${toDisplay(clr.front||0)}" min="${clrAttr.min}" max="${clrAttr.max}" step="${clrAttr.step}" style="width:50px;height:28px;font-size:12px;padding:2px 4px;" title="${t('frontClrLabel')}(${uLabel})">
+             <input class="input clr-front" type="number" value="${toDisplay(clr.front||0)}" min="${clrAttr.min}" max="${clrAttr.max}" step="${clrAttr.step}" style="width:50px;height:30px;font-size:13px;padding:2px 4px;" title="${t('frontClrLabel')}(${uLabel})">
              <label class="muted" style="font-size:11px;" title="${t('sideClrLabel')}(${uLabel})">${t('sideClrLabel')}</label>
-             <input class="input clr-side" type="number" value="${toDisplay(clr.side||0)}" min="${clrAttr.min}" max="${clrAttr.max}" step="${clrAttr.step}" style="width:50px;height:28px;font-size:12px;padding:2px 4px;" title="${t('sideClrLabel')}(${uLabel})">
+             <input class="input clr-side" type="number" value="${toDisplay(clr.side||0)}" min="${clrAttr.min}" max="${clrAttr.max}" step="${clrAttr.step}" style="width:50px;height:30px;font-size:13px;padding:2px 4px;" title="${t('sideClrLabel')}(${uLabel})">
            </div>
            ${shapePicker}
            <div style="display:flex;align-items:center;">
-             <button class="btn add-furn" data-key="${ft.key}" style="margin-left:auto;padding:2px 10px;font-size:12px;height:28px;">${t('addFurnBtn')}</button>
+             <button class="btn add-furn" data-key="${ft.key}" style="margin-left:auto;padding:2px 10px;font-size:13px;height:30px;">${t('addFurnBtn')}</button>
            </div>`;
         paletteEl.appendChild(row);
       });
@@ -905,6 +1005,104 @@ export default {
       const offset = (items.length % 5) * 15;
       const it = { id:nextId++, key, w, h, zH, clrFront, clrSide, x:10+offset, y:10+offset, rot:0, shape: shape||'rect' };
       clamp(it); items.push(it); renderRoom();
+    }
+
+    // 리사이즈 후 팔레트 입력칸과 치수 동기화 (feature A)
+    function syncPaletteDims(key, w, h, zH) {
+      const addBtn = paletteEl.querySelector(`.add-furn[data-key="${key}"]`);
+      if (!addBtn) return;
+      const row = addBtn.closest('.pal-row'); if (!row) return;
+      const wIn = row.querySelector('.dim-w'), hIn = row.querySelector('.dim-h'), zIn = row.querySelector('.dim-z');
+      if (wIn) wIn.value = toDisplay(w);
+      if (hIn) hIn.value = toDisplay(h);
+      if (zIn) zIn.value = toDisplay(zH);
+    }
+
+    // 선택 상태 전환: DOM 핸들 표시/숨기기 + 개구부 패널 제거 (feature 3)
+    function setSelected(id, kind) {
+      if (selectedId === id && selectedKind === kind) return;
+      selectedId = id;
+      selectedKind = kind;
+      // 가구 핸들 토글
+      roomEl.querySelectorAll('.rp-furn').forEach((el) => {
+        const isSel = kind==='furn' && Number(el.dataset.id)===id;
+        const body = el.querySelector('.rp-body');
+        if (body) { body.style.outline = isSel ? '2px solid var(--canvas-highlight)' : 'none'; }
+        for (const cls of ['rp-angle', 'rp-rot', 'rp-rm']) {
+          const node = el.querySelector('.'+cls);
+          if (node) node.style.display = isSel ? (cls==='rp-angle' ? '' : 'flex') : 'none';
+        }
+        el.querySelectorAll('.rp-rsz').forEach((n) => { n.style.display = isSel ? 'block' : 'none'; });
+      });
+      // 개구부 rm 버튼 토글
+      roomEl.querySelectorAll('.rp-opening').forEach((el) => {
+        const isSel = kind==='opening' && Number(el.dataset.openId)===id;
+        el.style.outline = isSel ? '2px solid var(--canvas-highlight)' : '';
+        el.style.outlineOffset = isSel ? '1px' : '';
+        const rmBtn = el.querySelector('.rp-rm');
+        if (rmBtn) rmBtn.style.display = isSel ? 'flex' : 'none';
+      });
+      // 기존 편집 패널 제거 (선택된 개구부면 renderRoom에서 재생성)
+      const panel = roomEl.querySelector('.rp-open-panel');
+      if (panel) panel.remove();
+    }
+
+    // 선택된 개구부 치수 편집 패널 생성 (features 1+3)
+    function renderOpenPanel(opId) {
+      const op = openings.find((o) => o.id===opId); if (!op) return;
+      const scale = getScale();
+      const g = openingGeom(op);
+      const panelW = 164;
+      const panelH = op.kind==='window' ? 96 : 68;
+      let panelLeft, panelTop;
+      if (op.wall==='top') {
+        panelLeft = Math.round((g.x + g.w/2)*scale - panelW/2);
+        panelTop  = Math.round((g.y + g.h)*scale + 6);
+      } else if (op.wall==='bottom') {
+        panelLeft = Math.round((g.x + g.w/2)*scale - panelW/2);
+        panelTop  = Math.round(g.y*scale - panelH - 6);
+      } else if (op.wall==='left') {
+        panelLeft = Math.round((g.x + g.w)*scale + 6);
+        panelTop  = Math.round((g.y + g.h/2)*scale - panelH/2);
+      } else {
+        panelLeft = Math.round(g.x*scale - panelW - 6);
+        panelTop  = Math.round((g.y + g.h/2)*scale - panelH/2);
+      }
+      panelLeft = Math.max(2, Math.min(Math.max(2, roomEl.offsetWidth - panelW - 2), panelLeft));
+      panelTop  = Math.max(2, panelTop);
+      const panel = document.createElement('div');
+      panel.className = 'rp-open-panel';
+      Object.assign(panel.style, {
+        position:'absolute', left:panelLeft+'px', top:panelTop+'px', width:panelW+'px',
+        zIndex:'10', background:'var(--surface-1)', border:'1px solid var(--border-strong)',
+        borderRadius:'6px', padding:'6px 8px', display:'flex', flexDirection:'column', gap:'4px',
+        boxShadow:'0 2px 8px rgba(0,0,0,0.25)',
+      });
+      const uLabel = UNITS[unit].label;
+      const dimA = convAttr(30, 500, 5), zhA = convAttr(50, 300, 5), sillA = convAttr(0, 250, 5);
+      const rs = 'display:flex;align-items:center;gap:4px;';
+      const ls = `font-size:11px;min-width:24px;color:var(--text-secondary);`;
+      const is = 'width:54px;height:24px;font-size:12px;padding:0 4px;';
+      const us = 'font-size:11px;color:var(--text-secondary);';
+      let html = `
+        <div style="${rs}"><span style="${ls}">${t('lenLabel')}</span>
+          <input class="input rp-open-len" type="number" data-open-id="${op.id}"
+            value="${toDisplay(op.len)}" min="${dimA.min}" max="${dimA.max}" step="${dimA.step}" style="${is}">
+          <span style="${us}">${uLabel}</span></div>
+        <div style="${rs}"><span style="${ls}">${t('heightWord')}</span>
+          <input class="input rp-open-zh" type="number" data-open-id="${op.id}"
+            value="${toDisplay(op.zH||200)}" min="${zhA.min}" max="${zhA.max}" step="${zhA.step}" style="${is}">
+          <span style="${us}">${uLabel}</span></div>`;
+      if (op.kind==='window') {
+        html += `
+        <div style="${rs}"><span style="${ls}">${t('sillShort')}</span>
+          <input class="input rp-sill" type="number" data-open-id="${op.id}"
+            value="${toDisplay(op.sill||0)}" min="${sillA.min}" max="${sillA.max}" step="${sillA.step}"
+            title="${t('sillTitle').replace('{u}', uLabel)}" style="${is}">
+          <span style="${us}">${uLabel}</span></div>`;
+      }
+      panel.innerHTML = html;
+      roomEl.appendChild(panel);
     }
 
     // ---- 이벤트 ----
@@ -948,31 +1146,74 @@ export default {
       if (sillInput) {
         const op = openings.find((o) => o.id===Number(sillInput.dataset.openId)); if (!op) return;
         op.sill = Math.max(0, readNum(sillInput, 0));
-        renderRoom();
+        renderRoom(); return;
+      }
+      // 개구부 폭 입력 (feature 1)
+      const lenInput = e.target.closest('.rp-open-len');
+      if (lenInput) {
+        const op = openings.find((o) => o.id===Number(lenInput.dataset.openId)); if (!op) return;
+        op.len = Math.max(30, Math.min(500, readNum(lenInput, op.len)));
+        renderRoom(); return;
+      }
+      // 개구부 높이 입력 (feature 1)
+      const zhInput = e.target.closest('.rp-open-zh');
+      if (zhInput) {
+        const op = openings.find((o) => o.id===Number(zhInput.dataset.openId)); if (!op) return;
+        op.zH = Math.max(50, Math.min(300, readNum(zhInput, op.zH)));
+        renderRoom(); return;
       }
     });
 
     roomEl.addEventListener('pointerdown', (e) => {
       if (e.target.tagName === 'INPUT') return;
+      if (e.target.closest('.rp-warn')) return; // 경고 배지는 자체 click 처리
+      hideTooltip();
+      if (e.target.closest('.rp-open-panel')) return; // 개구부 편집 패널 내부 클릭은 무시
       const openEl = e.target.closest('.rp-opening');
       if (openEl) {
         const oid = Number(openEl.dataset.openId);
         const openAction = e.target.closest('[data-action]');
-        if (openAction && openAction.dataset.action==='rm') { openings = openings.filter((o) => o.id!==oid); renderRoom(); return; }
+        if (openAction && openAction.dataset.action==='rm') {
+          openings = openings.filter((o) => o.id!==oid);
+          selectedId = null; selectedKind = null;
+          renderRoom(); return;
+        }
+        setSelected(oid, 'opening'); // 선택 표시 (feature 3)
         if (openings.find((o) => o.id===oid)) { openDrag = { id:oid, scale:getScale() }; openEl.setPointerCapture(e.pointerId); }
         return;
       }
-      const el = e.target.closest('.rp-furn'); if (!el) return;
+      const el = e.target.closest('.rp-furn');
+      if (!el) {
+        setSelected(null, null); // 빈 캔버스 클릭 → 선택 해제 (feature 3)
+        return;
+      }
       const action = e.target.closest('[data-action]');
       const id = Number(el.dataset.id);
       const it = items.find((x) => x.id===id); if (!it) return;
-      if (action && action.dataset.action==='rm') { items = items.filter((x) => x.id!==id); renderRoom(); return; }
+      if (action && action.dataset.action==='rm') {
+        items = items.filter((x) => x.id!==id);
+        selectedId = null; selectedKind = null;
+        renderRoom(); return;
+      }
+      setSelected(id, 'furn'); // 선택 표시 (feature 3)
       if (action && action.dataset.action==='rot') {
         const scale = getScale(); const rect = roomEl.getBoundingClientRect();
         const d = effDims(it); const cx = it.x+d.w/2, cy = it.y+d.h/2;
         const px = (e.clientX-rect.left)/scale, py = (e.clientY-rect.top)/scale;
         const startAngle = Math.atan2(py-cy, px-cx) * 180/Math.PI;
         rotateDrag = { id, scale, rect, cx, cy, startAngle, startRot: it.rot };
+        action.setPointerCapture(e.pointerId);
+        return;
+      }
+      if (action && action.dataset.action==='rsz') {
+        // 리사이즈 핸들 드래그 시작 (feature A)
+        const handle = action.dataset.handle;
+        const scale = getScale(); const d = effDims(it);
+        resizeDrag = {
+          id, handle, scale, origW:it.w, origH:it.h,
+          cx:it.x + d.w/2, cy:it.y + d.h/2,
+          startX:e.clientX, startY:e.clientY,
+        };
         action.setPointerCapture(e.pointerId);
         return;
       }
@@ -1002,6 +1243,36 @@ export default {
         setRot(it, newRot); clamp(it); renderRoom();
         return;
       }
+      if (resizeDrag) {
+        // 리사이즈 드래그 처리 (feature A)
+        const it = items.find((x) => x.id===resizeDrag.id); if (!it) return;
+        const dx = (e.clientX-resizeDrag.startX)/resizeDrag.scale;
+        const dy = (e.clientY-resizeDrag.startY)/resizeDrag.scale;
+        // 드래그 벡터를 가구 로컬 축에 투영
+        const r = it.rot*Math.PI/180, cos = Math.cos(r), sin = Math.sin(r);
+        const dLx = dx*cos + dy*sin, dLy = -dx*sin + dy*cos;
+        const h = resizeDrag.handle;
+        let dw = 0, dh = 0;
+        if (h.includes('e')) dw = dLx; else if (h.includes('w')) dw = -dLx;
+        if (h.includes('s')) dh = dLy; else if (h.includes('n')) dh = -dLy;
+        const newW = Math.max(10, resizeDrag.origW + dw);
+        const newH = Math.max(10, resizeDrag.origH + dh);
+        // 반대편(고정점) 위치 계산: 드래그하는 쪽의 반대 모서리/변이 고정됨
+        let fLx = 0, fLy = 0;
+        if (h.includes('e')) fLx = -resizeDrag.origW/2; else if (h.includes('w')) fLx = resizeDrag.origW/2;
+        if (h.includes('n')) fLy =  resizeDrag.origH/2; else if (h.includes('s')) fLy = -resizeDrag.origH/2;
+        const fw = rotatePoint(fLx, fLy, it.rot);
+        const fixX = resizeDrag.cx + fw.x, fixY = resizeDrag.cy + fw.y;
+        // 새 크기에서 같은 고정점 위치 계산
+        let nfLx = 0, nfLy = 0;
+        if (h.includes('e')) nfLx = -newW/2; else if (h.includes('w')) nfLx = newW/2;
+        if (h.includes('n')) nfLy =  newH/2; else if (h.includes('s')) nfLy = -newH/2;
+        const nfw = rotatePoint(nfLx, nfLy, it.rot);
+        const newCx = fixX - nfw.x, newCy = fixY - nfw.y;
+        it.w = newW; it.h = newH;
+        const nd = effDims(it); it.x = newCx - nd.w/2; it.y = newCy - nd.h/2;
+        clamp(it); renderRoom(); return;
+      }
       if (!dragState) return;
       const it = items.find((x) => x.id===dragState.id); if (!it) return;
       it.x = dragState.origX + (e.clientX-dragState.startX)/dragState.scale;
@@ -1012,6 +1283,11 @@ export default {
     function endDrag() {
       if (openDrag) { openDrag = null; renderRoom(); return; }
       if (rotateDrag) { rotateDrag = null; renderRoom(); return; }
+      if (resizeDrag) {
+        const it = items.find((x) => x.id===resizeDrag.id);
+        if (it) { clamp(it); syncPaletteDims(it.key, it.w, it.h, it.zH); }
+        resizeDrag = null; renderRoom(); return;
+      }
       if (dragState) {
         const it = items.find((x) => x.id===dragState.id);
         if (it) { applySnap(it); clamp(it); }
@@ -1047,6 +1323,7 @@ export default {
     container.querySelectorAll('.unit-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         unit = btn.dataset.unit;
+        roomState.unit = unit; // feature 4
         applyUnitToStaticUI();
         renderPalette();
         renderRoom();
@@ -1118,6 +1395,7 @@ export default {
     container.querySelectorAll('.lang-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         lang = btn.dataset.lang;
+        roomState.lang = lang; // feature 4
         applyLangToStaticUI();
         renderPalette();
         renderRoom();
@@ -1158,12 +1436,14 @@ export default {
 
     $('#clearToggle').addEventListener('click', () => {
       showClear = !showClear;
+      roomState.showClear = showClear; // feature 4: 탭 전환 후에도 유지
       $('#clearState').textContent = showClear ? 'ON' : 'OFF';
       $('#clearToggle').classList.toggle('off', !showClear);
       renderRoom();
     });
     $('#snapToggle').addEventListener('click', () => {
       snapOn = !snapOn;
+      roomState.snapOn = snapOn; // feature 4
       $('#snapState').textContent = snapOn ? 'ON' : 'OFF';
       $('#snapToggle').classList.toggle('off', !snapOn);
     });
@@ -1172,6 +1452,11 @@ export default {
     setShape(room.shape);
     applyUnitToStaticUI();
     applyLangToStaticUI();
+    // feature 4: 탭 전환 후 UI 토글 상태 복원
+    $('#clearState').textContent = showClear ? 'ON' : 'OFF';
+    $('#clearToggle').classList.toggle('off', !showClear);
+    $('#snapState').textContent = snapOn ? 'ON' : 'OFF';
+    $('#snapToggle').classList.toggle('off', !snapOn);
     renderPalette();
     setView('plan');
 

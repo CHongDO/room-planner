@@ -13,4 +13,8 @@ export const roomState = {
     { id:101, kind:'door',   wall:'bottom', pos:0.5, len:90,  sill:0,  zH:200 },
     { id:102, kind:'window', wall:'top',    pos:0.6, len:120, sill:90, zH:120 },
   ],
+  showClear: true,
+  snapOn: true,
+  unit: 'cm',
+  lang: 'ko',
 };
