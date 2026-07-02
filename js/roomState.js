@@ -10,8 +10,8 @@ export const roomState = {
     { id:2, key:'desk', w:120, h:60,  zH:75, clrFront:70, clrSide:0,  x:140, y:280, rot:0, shape:'rect' },
   ],
   openings: [
-    { id:101, kind:'door',   wall:'bottom', pos:0.5, len:90,  sill:0,  zH:200 },
-    { id:102, kind:'window', wall:'top',    pos:0.6, len:120, sill:90, zH:120 },
+    { id:101, kind:'door',   type:'swing',  swingDir:0, wall:'bottom', pos:0.5, len:90,  sill:0,  zH:200 },
+    { id:102, kind:'window', type:'window',             wall:'top',    pos:0.6, len:120, sill:90, zH:120 },
   ],
   showClear: true,
   snapOn: true,

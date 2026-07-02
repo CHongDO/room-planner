@@ -44,7 +44,11 @@ export default {
     let view = 'plan', elevWall = 'bottom';
     let lastElevLayout = null; // renderElev()가 채워두는 {scale, offsetX, horiz} - 줄자 계산용
     const SNAP = 12, DOOR_CLR = 90, WIN_CLR = 40;
-    const MAX_W = 920, MAX_H = 720;
+    // 캔버스(도면) 최대 크기. 실제 표시 폭은 컨테이너 폭과 이 값 중 작은 쪽으로 결정된다.
+    // ▶ 도면 크기를 일괄 조정하려면 CANVAS_ZOOM 값만 바꾸면 된다 (1.0 = 기본, 1.3 = +30%).
+    const CANVAS_ZOOM = 1.3;
+    const MAX_W = Math.round(1040 * CANVAS_ZOOM);   // 폭 상한
+    const MAX_H = Math.round(810  * CANVAS_ZOOM);   // 높이 상한
 
     // ---- 단위 변환 (내부 저장은 항상 cm, 화면 표시/입력만 변환) ----
     const UNITS = {
@@ -123,9 +127,13 @@ export default {
       rotateTitle:  { ko:'드래그해서 회전 (Shift: 15° 단위)', en:'Drag to rotate (hold Shift for 15° steps)' },
       angleTitle:   { ko:'각도(0~359도) 직접 입력', en:'Enter angle directly (0–359°)' },
       sillTitle:    { ko:'창틀 높이(바닥~창문 아래까지, {u}) — 이보다 낮은 가구는 채광을 가리지 않아요', en:'Window sill height (floor to bottom of window, {u}) — furniture shorter than this won’t block the light' },
-      heightWord:   { ko:'높이', en:'height' },
-      rotWord:      { ko:'회전', en:'rotation' },
-      positionWord: { ko:'위치', en:'position' },
+      heightWord:   { ko:'높이', en:'Height' },
+      widthWord:    { ko:'폭', en:'Width' },
+      sizeWord:     { ko:'크기', en:'Size' },
+      sillLabel:    { ko:'창틀', en:'Sill' },
+      rotWord:      { ko:'회전', en:'Rotation' },
+      positionWord: { ko:'위치', en:'Position' },
+      infoHint:     { ko:'요소를 선택하면 정보가 여기에 표시돼요.', en:'Select an item to see its info here.' },
       viewPlan:     { ko:'위에서 보기', en:'Top view' },
       viewElev:     { ko:'정면 보기', en:'Front view' },
       wallFront:    { ko:'앞', en:'Front' },
@@ -156,6 +164,12 @@ export default {
       warnClrNotch:  { ko:'여유 공간이 잘린 영역에 걸립니다', en:'Clearance extends into notch area' },
       lenLabel:      { ko:'폭', en:'W' },
       sillShort:     { ko:'틀', en:'Sill' },
+      typeSwing:     { ko:'여닫이', en:'Swing' },
+      typeSliding:   { ko:'미닫이', en:'Sliding' },
+      typeBypass:    { ko:'베란다창', en:'Bypass' },
+      typeWindow:    { ko:'일반창', en:'Window' },
+      typeOpening:   { ko:'통로', en:'Opening' },
+      swingFlipBtn:  { ko:'방향↺', en:'Flip↺' },
     };
     function t(key) {
       const e = STR[key];
@@ -179,6 +193,32 @@ export default {
           border: 1px solid var(--canvas-line);
           border-radius: var(--radius-sm);
         }
+        /* 캔버스 + 선택 정보 패널을 나란히 놓는 무대(stage) */
+        .rp-stage { display: flex; gap: 10px; align-items: flex-start; }
+        .rp-stage > #roomWrap { flex: 1 1 auto; min-width: 0; }
+        .rp-info {
+          flex: 0 0 248px; align-self: stretch; box-sizing: border-box;
+          background: var(--surface-1); border: 1px solid var(--border-strong);
+          border-radius: var(--radius-sm); padding: 16px 18px;
+          font-size: var(--font-size); color: var(--text-secondary);
+          /* 데스크탑: 폭을 항상 확보하고 visibility만 토글 → 선택 시 캔버스가 리플로우되지 않음 */
+          visibility: hidden;
+        }
+        .rp-info.is-open { visibility: visible; }
+        .rp-info-title {
+          display: flex; align-items: center; gap: 7px;
+          font-size: calc(var(--font-size) + 1px); font-weight: 700; color: var(--text-primary);
+          padding-bottom: 10px; margin-bottom: 2px; border-bottom: 1px solid var(--border);
+        }
+        .rp-info-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+        .rp-info-row > .lab { color: var(--text-secondary); font-size: var(--font-size-sm); }
+        .rp-info-row > .val { color: var(--text-primary); font-weight: 600; font-size: calc(var(--font-size) - 1px); display: flex; align-items: center; gap: 5px; }
+        .rp-info-num {
+          height: 32px; font-size: calc(var(--font-size) - 1px); text-align: center; padding: 0 5px;
+          border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+          background: var(--surface-2); color: var(--text-primary);
+        }
+        .rp-info-unit { color: var(--text-secondary); font-size: var(--font-size-sm); }
         /* 768px 이하 모바일에서만 레이아웃을 바꾼다. 데스크탑은 기존 그대로. */
         @media (max-width: 768px) {
           .rp-main { flex-direction: column; flex-wrap: nowrap; }
@@ -204,6 +244,15 @@ export default {
           /* 1차 화면에 남는 버튼들을 한 줄에 더 모이도록 살짝 축소 */
           .rp-compact-ctl.btn { height: 28px; padding: 0 8px; font-size: var(--font-size-sm); }
           .rp-compact-ctl.toggle-pill { padding: 4px 8px; font-size: var(--font-size-sm); }
+
+          /* 모바일: 정보 패널을 캔버스 아래로 내려 가로 전체 폭으로.
+             캔버스는 항상 전체 폭이라 아래 패널을 display로 여닫아도 리플로우 문제 없음 */
+          .rp-stage { flex-direction: column; }
+          .rp-info {
+            flex-basis: auto; width: 100%; align-self: auto;
+            visibility: visible; display: none; margin-top: 10px;
+          }
+          .rp-info.is-open { display: block; }
         }
       </style>
       <div class="card">
@@ -256,8 +305,8 @@ export default {
           <span class="muted" data-i18n="openingHint">문/창을 끌면 벽을 따라 이동해요</span>
         </div>
 
-        <div class="rp-main" style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;">
-          <div class="rp-palette-col" style="flex:0 0 240px;">
+        <div class="rp-main" style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start;">
+          <div class="rp-palette-col" style="flex:0 0 264px;">
             <button type="button" class="btn rp-palette-toggle" id="paletteToggle" aria-expanded="false" aria-controls="palette">
               <span data-i18n="furniturePanelLabel">가구 추가</span>
               <span class="rp-caret" aria-hidden="true">▾</span>
@@ -276,6 +325,7 @@ export default {
                 <span class="muted" id="elevWallLabel" style="margin-left:8px; font-weight:600;"></span>
               </span>
             </div>
+            <div class="rp-stage">
             <div id="roomWrap" style="position:relative; background:var(--surface-2); border-radius:var(--radius); display:flex; justify-content:center;">
               <div id="rulerLayer" style="position:absolute; left:0; top:0; right:0; bottom:0; pointer-events:none;"></div>
               <span class="plan-wall-label" id="wallLabelTop" style="position:absolute; font-size:10px; color:var(--text-link); cursor:pointer; white-space:nowrap;"></span>
@@ -284,6 +334,8 @@ export default {
               <span class="plan-wall-label" id="wallLabelRight" style="position:absolute; font-size:10px; color:var(--text-link); cursor:pointer; white-space:nowrap;"></span>
               <div id="room" class="rp-canvas-surface" style="position:relative; overflow:hidden;"></div>
               <div id="elev" class="rp-canvas-surface" style="position:relative; overflow:hidden; display:none;"></div>
+            </div>
+            <aside id="rpInfo" class="rp-info" aria-live="polite"></aside>
             </div>
             <p id="elevHint" class="muted" style="display:none; margin:6px 0 0; line-height:1.6;" data-i18n="elevHint"></p>
             <div class="row" style="margin-top:12px; align-items:stretch;">
@@ -302,6 +354,7 @@ export default {
     const elevEl = $('#elev');
     const paletteEl = $('#palette');
     const roomWrapEl = $('#roomWrap');
+    const rpInfoEl = $('#rpInfo');
 
     // 경고 툴팁 (feature 2): roomWrap에 추가 → renderRoom()이 roomEl 초기화해도 유지
     const tooltipEl = document.createElement('div');
@@ -437,10 +490,12 @@ export default {
       return                          { x:room.w-t, y:(room.h-len)*op.pos,  w:t,   h:len };
     }
     function openingClearRect(op) {
+      if (!hasClearZone(op)) return null;
       const g = openingGeom(op);
-      const depth = op.kind==='door' ? DOOR_CLR : WIN_CLR;
-      if (op.wall==='top')    return { x:g.x, y:0,            w:g.w,   h:depth };
-      if (op.wall==='bottom') return { x:g.x, y:room.h-depth, w:g.w,   h:depth };
+      // 여닫이문=호 반경(op.len), 일반창=WIN_CLR 고정값
+      const depth = opType(op)==='swing' ? op.len : WIN_CLR;
+      if (op.wall==='top')    return { x:g.x, y:0,            w:g.w, h:depth };
+      if (op.wall==='bottom') return { x:g.x, y:room.h-depth, w:g.w, h:depth };
       if (op.wall==='left')   return { x:0,          y:g.y,   w:depth, h:g.h };
       return                         { x:room.w-depth, y:g.y, w:depth, h:g.h };
     }
@@ -470,8 +525,8 @@ export default {
         bodies.forEach((b) => { if (b.id!==it.id && overlap(body,b)) it.invalid = true; });
         openings.forEach((op) => {
           const cr = openingClearRect(op);
-          if (!overlap(body, cr)) return;
-          if (op.kind==='door') { it.invalid = true; blockDoor = true; it._warnings.push('warnBlockDoor'); return; }
+          if (!cr || !overlap(body, cr)) return;
+          if (isDoor(op)) { it.invalid = true; blockDoor = true; it._warnings.push('warnBlockDoor'); return; }
           // 창문: 가구 높이가 창틀(sill)보다 낮으면 채광을 가리지 않음
           if (it.zH > (op.sill||0)) { it.invalid = true; blockWin = true; it._warnings.push('warnBlockWin'); }
         });
@@ -507,7 +562,14 @@ export default {
       return { borderRadius:'6px', clipPath:'none' };
     }
 
-    // 보기 좋은 간격(1·2·5×10ⁿ)으로 줄자 눈금 단위를 고른다.
+    // ---- 개구부 타입 헬퍼 ----
+    // type 필드가 없는 기존 데이터는 kind('door'→'swing', 'window'→'window')로 판별
+    function opType(op) { return op.type || (op.kind==='door' ? 'swing' : 'window'); }
+    function isDoor(op) { const tp=opType(op); return tp==='swing'||tp==='sliding'; }
+    function isWin(op)  { const tp=opType(op); return tp==='window'||tp==='bypass'; }
+    function hasClearZone(op) { const tp=opType(op); return tp==='swing'||tp==='window'; }
+
+    // ---- 보기 좋은 간격(1·2·5×10ⁿ)으로 줄자 눈금 단위를 고른다.
     function niceTickStep(rangeDisplay, targetTicks) {
       const raw = rangeDisplay/targetTicks;
       if (!(raw>0)) return 1;
@@ -622,13 +684,14 @@ export default {
         roomEl.appendChild(notchEl);
       }
 
-      // 개구부 여유 영역
+      // 개구부 여유 영역 (swing=도면 호 영역, window=채광 영역; 여유없는 타입은 생략)
       openings.forEach((op) => {
         const cr = openingClearRect(op);
+        if (!cr) return;
         const z = mkZone(cr, scale);
-        const col = op.kind==='door' ? 'var(--canvas-door-color)' : 'var(--canvas-window-color)';
+        const col = isDoor(op) ? 'var(--canvas-door-color)' : 'var(--canvas-window-color)';
         z.style.setProperty('--cz-color', col); z.style.setProperty('--cz-border', col);
-        z.style.opacity = '.45';
+        z.style.opacity = '.35';
         roomEl.appendChild(z);
       });
 
@@ -643,10 +706,11 @@ export default {
         });
       });
 
-      // 개구부 본체
+      // 개구부 본체 — 타입별 스타일
       openings.forEach((op) => {
         const g = openingGeom(op);
         const isSel = selectedId===op.id && selectedKind==='opening';
+        const tp = opType(op);
         const el = document.createElement('div');
         el.className = 'rp-opening';
         Object.assign(el.style, {
@@ -658,21 +722,84 @@ export default {
           outline: isSel ? '2px solid var(--canvas-highlight)' : '',
           outlineOffset: isSel ? '1px' : '',
         });
-        if (op.kind==='door') { el.style.background = 'var(--canvas-door-color)'; el.style.color = 'var(--canvas-bg)'; }
-        else { el.style.background = 'var(--canvas-window-fill)'; el.style.color = 'var(--canvas-window-fill-text)'; }
+        // 타입별 색상
+        if (tp==='swing')   { el.style.background='var(--canvas-door-color)'; el.style.color='var(--canvas-bg)'; }
+        else if (tp==='sliding') { el.style.background='var(--canvas-door-color)'; el.style.opacity='0.55'; el.style.color='var(--canvas-bg)'; }
+        else if (tp==='window')  { el.style.background='var(--canvas-window-fill)'; el.style.color='var(--canvas-window-fill-text)'; }
+        else if (tp==='bypass')  { el.style.background='var(--canvas-window-fill)'; el.style.border='2px solid var(--canvas-window-color)'; el.style.color='var(--canvas-window-fill-text)'; }
+        else /* opening */       { el.style.background='transparent'; el.style.border='1.5px dashed var(--canvas-line-soft)'; el.style.color='var(--canvas-muted)'; }
         el.dataset.openId = op.id;
         const label = document.createElement('span');
-        label.textContent = op.kind==='door' ? t('doorBtn') : t('windowBtn');
+        label.textContent = t('type'+tp.charAt(0).toUpperCase()+tp.slice(1));
         if (op.wall==='left' || op.wall==='right') label.style.transform = 'rotate(90deg)';
         el.appendChild(label);
-        // 삭제 버튼: 선택 시에만 표시 (feature 3)
         el.insertAdjacentHTML('beforeend',
           `<span class="rp-rm" data-action="rm" title="${t('deleteTitle')}" style="position:absolute;top:-8px;right:-8px;width:16px;height:16px;border-radius:50%;background:var(--surface-1);border:1px solid var(--border-strong);display:${isSel?'flex':'none'};align-items:center;justify-content:center;cursor:pointer;z-index:7;">${icon('close',10)}</span>`);
         roomEl.appendChild(el);
       });
-      // 선택된 개구부 치수 편집 패널 (features 1+3)
-      if (selectedKind==='opening' && selectedId!==null) renderOpenPanel(selectedId);
 
+      // SVG 오버레이: 여닫이 호(arc) + 미닫이 이중선 도면 기호
+      {
+        const ns = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(ns, 'svg');
+        const rw = Math.round(room.w*scale), rh = Math.round(room.h*scale);
+        svg.setAttribute('width', rw); svg.setAttribute('height', rh);
+        Object.assign(svg.style, { position:'absolute', left:'0', top:'0', pointerEvents:'none', zIndex:'4', overflow:'visible' });
+        function svgEl(tag, attrs, styleStr) {
+          const el2 = document.createElementNS(ns, tag);
+          if (attrs) Object.entries(attrs).forEach(([k,v]) => el2.setAttribute(k, v));
+          if (styleStr) el2.setAttribute('style', styleStr);
+          return el2;
+        }
+        openings.forEach((op) => {
+          const tp = opType(op);
+          const g = openingGeom(op);
+          const gx=g.x*scale, gy=g.y*scale, gw=g.w*scale, gh=g.h*scale;
+          if (tp === 'swing') {
+            const sd = op.swingDir||0, len = op.len*scale;
+            let hx, hy, dx, dy, wx, wy;
+            if (op.wall==='top')    { hy=gy;       hx=sd?gx+gw:gx;       dx=0;    dy=len;  wx=sd?-len:len; wy=0; }
+            else if (op.wall==='bottom') { hy=gy+gh; hx=sd?gx+gw:gx;  dx=0;    dy=-len; wx=sd?-len:len; wy=0; }
+            else if (op.wall==='left')   { hx=gx;   hy=sd?gy+gh:gy;   dx=len;  dy=0;    wx=0; wy=sd?-len:len; }
+            else                         { hx=gx+gw; hy=sd?gy+gh:gy; dx=-len; dy=0;    wx=0; wy=sd?-len:len; }
+            const ox=hx+dx, oy=hy+dy, cx_=hx+wx, cy_=hy+wy;
+            const swTab = { top:[0,1], bottom:[1,0], left:[1,0], right:[0,1] };
+            const sweep = swTab[op.wall][sd];
+            svg.appendChild(svgEl('path',
+              { d:`M ${hx} ${hy} L ${ox} ${oy} A ${len} ${len} 0 0 ${sweep} ${cx_} ${cy_}` },
+              'fill:none;stroke:var(--canvas-accent);stroke-width:1.5;stroke-dasharray:5 3;'));
+            svg.appendChild(svgEl('circle', { cx:hx, cy:hy, r:3 },
+              'fill:var(--canvas-accent);'));
+            // 문짝 닫힌 위치 실선
+            svg.appendChild(svgEl('line',
+              { x1:hx, y1:hy, x2:cx_, y2:cy_ },
+              'stroke:var(--canvas-accent);stroke-width:2;'));
+          } else if (tp === 'sliding') {
+            // 이중 평행선: 두 패널이 교차하며 미끄러지는 표시
+            const st = 'stroke:var(--canvas-accent);stroke-width:1.5;';
+            const st2 = 'stroke:var(--canvas-accent);stroke-width:0.8;stroke-dasharray:3 3;';
+            if (op.wall==='top'||op.wall==='bottom') {
+              const mid=gx+gw/2, y1=gy+gh*0.15, y2=gy+gh*0.85;
+              svg.appendChild(svgEl('line',{x1:gx,  y1:y1,x2:mid,   y2:y1},st));
+              svg.appendChild(svgEl('line',{x1:mid, y1:y2,x2:gx+gw,y2:y2},st));
+              svg.appendChild(svgEl('line',{x1:gx,  y1:y2,x2:mid,   y2:y2},st2));
+              svg.appendChild(svgEl('line',{x1:mid, y1:y1,x2:gx+gw,y2:y1},st2));
+            } else {
+              const mid=gy+gh/2, x1=gx+gw*0.15, x2=gx+gw*0.85;
+              svg.appendChild(svgEl('line',{x1,y1:gy,  x2:x1,y2:mid},  st));
+              svg.appendChild(svgEl('line',{x1:x2,y1:mid,x2,y2:gy+gh},st));
+              svg.appendChild(svgEl('line',{x1:x2,y1:gy,  x2,y2:mid},  st2));
+              svg.appendChild(svgEl('line',{x1,y1:mid,x2:x1,y2:gy+gh},st2));
+            }
+          } else if (tp === 'bypass') {
+            // 베란다창: X자 유리 표시
+            const st = 'stroke:var(--canvas-window-color);stroke-width:1;opacity:0.7;';
+            svg.appendChild(svgEl('line',{x1:gx,y1:gy,x2:gx+gw,y2:gy+gh},st));
+            svg.appendChild(svgEl('line',{x1:gx+gw,y1:gy,x2:gx,y2:gy+gh},st));
+          }
+        });
+        roomEl.appendChild(svg);
+      }
       // 가구 본체: 바깥 래퍼는 회전하지 않는 바운딩박스(회전/삭제 버튼 위치 고정용)이고
       // 안쪽 body만 실제 각도와 모양(사각/원/삼각)으로 표시한다.
       items.forEach((it, idx) => {
@@ -740,11 +867,8 @@ export default {
         const angleBadge = (rotateDrag && rotateDrag.id===it.id)
           ? `<span style="position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:10px;white-space:nowrap;background:var(--surface-1);color:var(--canvas-bg);border:1px solid var(--canvas-highlight);border-radius:4px;padding:1px 4px;z-index:7;">${it.rot}&deg;</span>`
           : '';
-        // 조작 핸들: 선택 시에만 표시 (feature 3)
+        // 조작 핸들: 선택 시에만 표시 (feature 3). 각도 숫자 입력은 정보 패널로 일원화됨.
         div.insertAdjacentHTML('beforeend',
-          `<input type="number" class="rp-angle" data-id="${it.id}" value="${it.rot}" min="0" max="359" step="1"
-             title="${t('angleTitle')}"
-             style="position:absolute;top:-22px;left:50%;transform:translateX(-50%);width:52px;height:18px;font-size:11px;text-align:center;padding:0 2px;border:1px solid var(--border-strong);border-radius:4px;background:var(--surface-1);color:var(--text-secondary);z-index:6;display:${hd};">` +
           `<span class="rp-rot" data-action="rot" title="${t('rotateTitle')}" style="position:absolute;top:-3px;left:-3px;width:18px;height:18px;border-radius:50%;background:var(--surface-1);border:1px solid var(--border-strong);display:${hd==='none'?'none':'flex'};align-items:center;justify-content:center;cursor:grab;z-index:6;">${icon('rotate',11)}</span>` +
           `<span class="rp-rm" data-action="rm" title="${t('deleteTitle')}" style="position:absolute;top:-3px;right:-3px;width:18px;height:18px;border-radius:50%;background:var(--surface-1);border:1px solid var(--border-strong);display:${hd==='none'?'none':'flex'};align-items:center;justify-content:center;cursor:pointer;z-index:6;">${icon('close',11)}</span>` +
           angleBadge);
@@ -790,6 +914,7 @@ export default {
       positionWallLabels();
       renderElev();
       positionRulers();
+      renderInfoPanel();
       roomState.room = room; roomState.items = items; roomState.openings = openings;
     }
 
@@ -897,9 +1022,9 @@ export default {
           width:Math.round(width*scale)+'px',
           height:Math.round((ceilY-floorY)*scale)+'px',
         });
-        if (op.kind==='door') { el.style.background = 'var(--canvas-door-color)'; el.style.color = 'var(--canvas-bg)'; }
+        if (isDoor(op)) { el.style.background = 'var(--canvas-door-color)'; el.style.color = 'var(--canvas-bg)'; }
         else { el.style.background = 'var(--canvas-window-fill)'; el.style.color = 'var(--canvas-window-fill-text)'; }
-        el.textContent = op.kind==='door' ? t('doorBtn') : t('windowBtn');
+        el.textContent = isDoor(op) ? t('doorBtn') : t('windowBtn');
         elevEl.appendChild(el);
       });
 
@@ -981,21 +1106,21 @@ export default {
              <span class="muted" style="font-size:10px;">${t('unitCaptionPrefix')}${uLabel}</span>
            </div>
            <div style="display:flex;align-items:center;gap:4px;">
-             <input class="input dim-w" type="number" value="${toDisplay(ft.w)}" min="${dimAttr.min}" max="${dimAttr.max}" step="${dimAttr.step}" style="width:54px;height:30px;font-size:13px;padding:2px 4px;" title="${t('widthLabel')}(${uLabel})">
+             <input class="input dim-w" type="number" value="${toDisplay(ft.w)}" min="${dimAttr.min}" max="${dimAttr.max}" step="${dimAttr.step}" style="width:60px;height:34px;font-size:var(--font-size-sm);padding:2px 5px;" title="${t('widthLabel')}(${uLabel})">
              <span class="muted">×</span>
-             <input class="input dim-h" type="number" value="${toDisplay(ft.h)}" min="${dimAttr.min}" max="${dimAttr.max}" step="${dimAttr.step}" style="width:54px;height:30px;font-size:13px;padding:2px 4px;" title="${t('depthLabel')}(${uLabel})">
+             <input class="input dim-h" type="number" value="${toDisplay(ft.h)}" min="${dimAttr.min}" max="${dimAttr.max}" step="${dimAttr.step}" style="width:60px;height:34px;font-size:var(--font-size-sm);padding:2px 5px;" title="${t('depthLabel')}(${uLabel})">
              <span class="muted">×</span>
-             <input class="input dim-z" type="number" value="${toDisplay(ft.zH)}" min="${heightAttr.min}" max="${heightAttr.max}" step="${heightAttr.step}" style="width:54px;height:30px;font-size:13px;padding:2px 4px;" title="${t('heightWord')}(${uLabel})">
+             <input class="input dim-z" type="number" value="${toDisplay(ft.zH)}" min="${heightAttr.min}" max="${heightAttr.max}" step="${heightAttr.step}" style="width:60px;height:34px;font-size:var(--font-size-sm);padding:2px 5px;" title="${t('heightWord')}(${uLabel})">
            </div>
            <div style="display:flex;align-items:center;gap:4px;">
              <label class="muted" style="font-size:11px;" title="${t('frontClrLabel')}(${uLabel})">${t('frontClrLabel')}</label>
-             <input class="input clr-front" type="number" value="${toDisplay(clr.front||0)}" min="${clrAttr.min}" max="${clrAttr.max}" step="${clrAttr.step}" style="width:50px;height:30px;font-size:13px;padding:2px 4px;" title="${t('frontClrLabel')}(${uLabel})">
+             <input class="input clr-front" type="number" value="${toDisplay(clr.front||0)}" min="${clrAttr.min}" max="${clrAttr.max}" step="${clrAttr.step}" style="width:56px;height:34px;font-size:var(--font-size-sm);padding:2px 5px;" title="${t('frontClrLabel')}(${uLabel})">
              <label class="muted" style="font-size:11px;" title="${t('sideClrLabel')}(${uLabel})">${t('sideClrLabel')}</label>
-             <input class="input clr-side" type="number" value="${toDisplay(clr.side||0)}" min="${clrAttr.min}" max="${clrAttr.max}" step="${clrAttr.step}" style="width:50px;height:30px;font-size:13px;padding:2px 4px;" title="${t('sideClrLabel')}(${uLabel})">
+             <input class="input clr-side" type="number" value="${toDisplay(clr.side||0)}" min="${clrAttr.min}" max="${clrAttr.max}" step="${clrAttr.step}" style="width:56px;height:34px;font-size:var(--font-size-sm);padding:2px 5px;" title="${t('sideClrLabel')}(${uLabel})">
            </div>
            ${shapePicker}
            <div style="display:flex;align-items:center;">
-             <button class="btn add-furn" data-key="${ft.key}" style="margin-left:auto;padding:2px 10px;font-size:13px;height:30px;">${t('addFurnBtn')}</button>
+             <button class="btn add-furn" data-key="${ft.key}" style="margin-left:auto;padding:2px 12px;font-size:var(--font-size-sm);height:34px;">${t('addFurnBtn')}</button>
            </div>`;
         paletteEl.appendChild(row);
       });
@@ -1028,9 +1153,9 @@ export default {
         const isSel = kind==='furn' && Number(el.dataset.id)===id;
         const body = el.querySelector('.rp-body');
         if (body) { body.style.outline = isSel ? '2px solid var(--canvas-highlight)' : 'none'; }
-        for (const cls of ['rp-angle', 'rp-rot', 'rp-rm']) {
+        for (const cls of ['rp-rot', 'rp-rm']) {
           const node = el.querySelector('.'+cls);
-          if (node) node.style.display = isSel ? (cls==='rp-angle' ? '' : 'flex') : 'none';
+          if (node) node.style.display = isSel ? 'flex' : 'none';
         }
         el.querySelectorAll('.rp-rsz').forEach((n) => { n.style.display = isSel ? 'block' : 'none'; });
       });
@@ -1042,67 +1167,77 @@ export default {
         const rmBtn = el.querySelector('.rp-rm');
         if (rmBtn) rmBtn.style.display = isSel ? 'flex' : 'none';
       });
-      // 기존 편집 패널 제거 (선택된 개구부면 renderRoom에서 재생성)
-      const panel = roomEl.querySelector('.rp-open-panel');
-      if (panel) panel.remove();
+      // 선택 정보 패널(오른쪽/하단)을 즉시 갱신
+      renderInfoPanel();
     }
 
-    // 선택된 개구부 치수 편집 패널 생성 (features 1+3)
-    function renderOpenPanel(opId) {
-      const op = openings.find((o) => o.id===opId); if (!op) return;
-      const scale = getScale();
-      const g = openingGeom(op);
-      const panelW = 164;
-      const panelH = op.kind==='window' ? 96 : 68;
-      let panelLeft, panelTop;
-      if (op.wall==='top') {
-        panelLeft = Math.round((g.x + g.w/2)*scale - panelW/2);
-        panelTop  = Math.round((g.y + g.h)*scale + 6);
-      } else if (op.wall==='bottom') {
-        panelLeft = Math.round((g.x + g.w/2)*scale - panelW/2);
-        panelTop  = Math.round(g.y*scale - panelH - 6);
-      } else if (op.wall==='left') {
-        panelLeft = Math.round((g.x + g.w)*scale + 6);
-        panelTop  = Math.round((g.y + g.h/2)*scale - panelH/2);
-      } else {
-        panelLeft = Math.round(g.x*scale - panelW - 6);
-        panelTop  = Math.round((g.y + g.h/2)*scale - panelH/2);
+    // ---- 선택 요소 정보 패널 (오른쪽 공백 / 모바일 하단) ----
+    // 캔버스 밖 고정 위치. 선택 시에만 표시되고, 드래그·회전·리사이즈 중 실시간 갱신.
+    // 역할 분리: 가구 회전 각도의 "숫자 입력"은 이 패널에서만(한 곳), 캔버스엔 드래그 손잡이만.
+    function renderInfoPanel() {
+      if (!rpInfoEl) return;
+      // 정면 보기(읽기 전용)이거나 선택 없음 → 패널 숨김
+      if (view !== 'plan' || selectedId === null) {
+        rpInfoEl.classList.remove('is-open');
+        rpInfoEl.innerHTML = '';
+        return;
       }
-      panelLeft = Math.max(2, Math.min(Math.max(2, roomEl.offsetWidth - panelW - 2), panelLeft));
-      panelTop  = Math.max(2, panelTop);
-      const panel = document.createElement('div');
-      panel.className = 'rp-open-panel';
-      Object.assign(panel.style, {
-        position:'absolute', left:panelLeft+'px', top:panelTop+'px', width:panelW+'px',
-        zIndex:'10', background:'var(--surface-1)', border:'1px solid var(--border-strong)',
-        borderRadius:'6px', padding:'6px 8px', display:'flex', flexDirection:'column', gap:'4px',
-        boxShadow:'0 2px 8px rgba(0,0,0,0.25)',
-      });
-      const uLabel = UNITS[unit].label;
-      const dimA = convAttr(30, 500, 5), zhA = convAttr(50, 300, 5), sillA = convAttr(0, 250, 5);
-      const rs = 'display:flex;align-items:center;gap:4px;';
-      const ls = `font-size:11px;min-width:24px;color:var(--text-secondary);`;
-      const is = 'width:54px;height:24px;font-size:12px;padding:0 4px;';
-      const us = 'font-size:11px;color:var(--text-secondary);';
-      let html = `
-        <div style="${rs}"><span style="${ls}">${t('lenLabel')}</span>
-          <input class="input rp-open-len" type="number" data-open-id="${op.id}"
-            value="${toDisplay(op.len)}" min="${dimA.min}" max="${dimA.max}" step="${dimA.step}" style="${is}">
-          <span style="${us}">${uLabel}</span></div>
-        <div style="${rs}"><span style="${ls}">${t('heightWord')}</span>
-          <input class="input rp-open-zh" type="number" data-open-id="${op.id}"
-            value="${toDisplay(op.zH||200)}" min="${zhA.min}" max="${zhA.max}" step="${zhA.step}" style="${is}">
-          <span style="${us}">${uLabel}</span></div>`;
-      if (op.kind==='window') {
-        html += `
-        <div style="${rs}"><span style="${ls}">${t('sillShort')}</span>
-          <input class="input rp-sill" type="number" data-open-id="${op.id}"
-            value="${toDisplay(op.sill||0)}" min="${sillA.min}" max="${sillA.max}" step="${sillA.step}"
-            title="${t('sillTitle').replace('{u}', uLabel)}" style="${is}">
-          <span style="${us}">${uLabel}</span></div>`;
+      const U = UNITS[unit].label;
+
+      if (selectedKind === 'furn') {
+        const it = items.find((x) => x.id === selectedId);
+        if (!it) { rpInfoEl.classList.remove('is-open'); rpInfoEl.innerHTML = ''; return; }
+        const ft = findType(it.key);
+        const dimA = convAttr(10, 300, 5), zhA = convAttr(1, 300, 5);
+        const dimIn = (cls, val) =>
+          `<input type="number" class="rp-info-num ${cls}" data-id="${it.id}" value="${val}" min="${dimA.min}" max="${dimA.max}" step="${dimA.step}" style="width:62px;">`;
+        rpInfoEl.innerHTML =
+          `<div class="rp-info-title">${icon(ft.ic,17)}<span>${furnName(it.key)}</span></div>` +
+          `<div class="rp-info-row"><span class="lab">${t('sizeWord')}</span>` +
+            `<span class="val">${dimIn('rp-dim-w', toDisplay(it.w))}<span class="rp-info-unit">×</span>${dimIn('rp-dim-h', toDisplay(it.h))}<span class="rp-info-unit">${U}</span></span></div>` +
+          `<div class="rp-info-row"><span class="lab">${t('heightWord')}</span>` +
+            `<span class="val"><input type="number" class="rp-info-num rp-dim-z" data-id="${it.id}" value="${toDisplay(it.zH)}" min="${zhA.min}" max="${zhA.max}" step="${zhA.step}" style="width:72px;"><span class="rp-info-unit">${U}</span></span></div>` +
+          `<div class="rp-info-row"><span class="lab">${t('positionWord')}</span><span class="val">(${toDisplay(it.x)}, ${toDisplay(it.y)}) <span class="rp-info-unit">${U}</span></span></div>` +
+          `<div class="rp-info-row"><span class="lab">${t('rotWord')}</span>` +
+            `<span class="val"><input type="number" class="rp-info-num rp-angle" data-id="${it.id}" value="${it.rot}" min="0" max="359" step="1" title="${t('angleTitle')}" style="width:66px;"><span class="rp-info-unit">°</span></span></div>`;
+        rpInfoEl.classList.add('is-open');
+        return;
       }
-      panel.innerHTML = html;
-      roomEl.appendChild(panel);
+
+      if (selectedKind === 'opening') {
+        const op = openings.find((o) => o.id === selectedId);
+        if (!op) { rpInfoEl.classList.remove('is-open'); rpInfoEl.innerHTML = ''; return; }
+        const tp = opType(op);
+        const showSill = isWin(op);
+        const showSwingFlip = tp === 'swing';
+        const isDoorGroup = isDoor(op) || tp === 'opening';
+        const typeSet = isDoorGroup
+          ? [['swing','typeSwing'],['sliding','typeSliding'],['opening','typeOpening']]
+          : [['window','typeWindow'],['bypass','typeBypass']];
+        const dimA = convAttr(30, 500, 5), zhA = convAttr(50, 300, 5), sillA = convAttr(0, 250, 5);
+        const btS = 'font-size:var(--font-size-sm);padding:2px 10px;height:32px;';
+        const typeBtns = typeSet.map(([tv,tk]) =>
+          `<button class="btn rp-open-type${tp===tv?' btn--primary':''}" data-open-id="${op.id}" data-type="${tv}" style="${btS}">${t(tk)}</button>`
+        ).join('');
+        const opIn = (cls, val, a, title) =>
+          `<input type="number" class="rp-info-num ${cls}" data-open-id="${op.id}" value="${val}" min="${a.min}" max="${a.max}" step="${a.step}"${title?` title="${title}"`:''} style="width:74px;">`;
+        let html = `<div class="rp-info-title">${icon('maximize',17)}<span>${t('type'+tp.charAt(0).toUpperCase()+tp.slice(1))}</span></div>`;
+        html += `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:12px;">${typeBtns}</div>`;
+        if (showSwingFlip) {
+          html += `<div style="margin-top:8px;"><button class="btn rp-swing-flip" data-open-id="${op.id}" style="${btS}">${t('swingFlipBtn')}</button></div>`;
+        }
+        html += `<div class="rp-info-row"><span class="lab">${t('lenLabel')}</span>` +
+          `<span class="val">${opIn('rp-open-len', toDisplay(op.len), dimA)}<span class="rp-info-unit">${U}</span></span></div>`;
+        html += `<div class="rp-info-row"><span class="lab">${t('heightWord')}</span>` +
+          `<span class="val">${opIn('rp-open-zh', toDisplay(op.zH||200), zhA)}<span class="rp-info-unit">${U}</span></span></div>`;
+        if (showSill) {
+          html += `<div class="rp-info-row"><span class="lab">${t('sillShort')}</span>` +
+            `<span class="val">${opIn('rp-sill', toDisplay(op.sill||0), sillA, t('sillTitle').replace('{u}', U))}<span class="rp-info-unit">${U}</span></span></div>`;
+        }
+        rpInfoEl.innerHTML = html;
+        rpInfoEl.classList.add('is-open');
+        return;
+      }
     }
 
     // ---- 이벤트 ----
@@ -1128,13 +1263,33 @@ export default {
     container.querySelectorAll('.add-open').forEach((btn) => {
       btn.addEventListener('click', () => {
         const kind = btn.dataset.kind;
-        const defaults = kind==='door' ? { sill:0, zH:200, len:90 } : { sill:90, zH:120, len:120 };
+        const defaults = kind==='door'
+          ? { type:'swing', swingDir:0, sill:0, zH:200, len:90 }
+          : { type:'window', sill:90, zH:120, len:120 };
         openings.push({ id:nextOpenId++, kind, wall:'left', pos:0.5, ...defaults });
         renderRoom();
       });
     });
 
-    roomEl.addEventListener('change', (e) => {
+    // 정보 패널 입력(가구 크기·높이·각도, 개구부 치수)은 캔버스 밖 rpInfoEl에 있으므로 여기서 위임 처리.
+    // 크기 변경 시 중심을 고정한 채 리사이즈하고, 팔레트 입력칸도 동기화 → 패널·팔레트·캔버스 실시간 일치.
+    rpInfoEl.addEventListener('change', (e) => {
+      const dimInput = e.target.closest('.rp-dim-w, .rp-dim-h, .rp-dim-z');
+      if (dimInput) {
+        const it = items.find((x) => x.id===Number(dimInput.dataset.id)); if (!it) return;
+        if (dimInput.classList.contains('rp-dim-z')) {
+          it.zH = Math.max(1, Math.min(300, readNum(dimInput, it.zH)));
+        } else {
+          const oldD = effDims(it);
+          const cx = it.x + oldD.w/2, cy = it.y + oldD.h/2;
+          const val = Math.max(10, Math.min(300, readNum(dimInput, dimInput.classList.contains('rp-dim-w') ? it.w : it.h)));
+          if (dimInput.classList.contains('rp-dim-w')) it.w = val; else it.h = val;
+          const nd = effDims(it);
+          it.x = cx - nd.w/2; it.y = cy - nd.h/2;
+        }
+        clamp(it); syncPaletteDims(it.key, it.w, it.h, it.zH); renderRoom();
+        return;
+      }
       const angleInput = e.target.closest('.rp-angle');
       if (angleInput) {
         const it = items.find((x) => x.id===Number(angleInput.dataset.id)); if (!it) return;
@@ -1148,14 +1303,12 @@ export default {
         op.sill = Math.max(0, readNum(sillInput, 0));
         renderRoom(); return;
       }
-      // 개구부 폭 입력 (feature 1)
       const lenInput = e.target.closest('.rp-open-len');
       if (lenInput) {
         const op = openings.find((o) => o.id===Number(lenInput.dataset.openId)); if (!op) return;
         op.len = Math.max(30, Math.min(500, readNum(lenInput, op.len)));
         renderRoom(); return;
       }
-      // 개구부 높이 입력 (feature 1)
       const zhInput = e.target.closest('.rp-open-zh');
       if (zhInput) {
         const op = openings.find((o) => o.id===Number(zhInput.dataset.openId)); if (!op) return;
@@ -1164,11 +1317,27 @@ export default {
       }
     });
 
+    // 개구부 패널 버튼 클릭 (타입 전환, swingDir 전환) — rpInfoEl에 위치
+    rpInfoEl.addEventListener('click', (e) => {
+      const typeBtn = e.target.closest('.rp-open-type');
+      if (typeBtn) {
+        const op = openings.find((o) => o.id===Number(typeBtn.dataset.openId)); if (!op) return;
+        op.type = typeBtn.dataset.type;
+        if (op.type!=='swing') delete op.swingDir;
+        renderRoom(); return;
+      }
+      const flipBtn = e.target.closest('.rp-swing-flip');
+      if (flipBtn) {
+        const op = openings.find((o) => o.id===Number(flipBtn.dataset.openId)); if (!op) return;
+        op.swingDir = (op.swingDir||0) ? 0 : 1;
+        renderRoom(); return;
+      }
+    });
+
     roomEl.addEventListener('pointerdown', (e) => {
       if (e.target.tagName === 'INPUT') return;
       if (e.target.closest('.rp-warn')) return; // 경고 배지는 자체 click 처리
       hideTooltip();
-      if (e.target.closest('.rp-open-panel')) return; // 개구부 편집 패널 내부 클릭은 무시
       const openEl = e.target.closest('.rp-opening');
       if (openEl) {
         const oid = Number(openEl.dataset.openId);

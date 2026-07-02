@@ -275,20 +275,34 @@ export default {
       grid.position.set(W / 2, 0.5, D / 2);
       scene.add(grid);
 
-      // ---- 벽 ----
-      const wallMat = new THREE.MeshLambertMaterial({
-        color: 0x1a3a5c, transparent: true, opacity: 0.5, side: THREE.DoubleSide,
-      });
-      function addWall(planeW, planeH, px, py, pz, ry = 0) {
-        const m = new THREE.Mesh(new THREE.PlaneGeometry(planeW, planeH), wallMat);
-        m.rotation.y = ry;
-        m.position.set(px, py, pz);
-        scene.add(m);
+      // ---- 벽 — 각각 독립 머티리얼 (카메라 방향에 따라 투명도 개별 제어) ----
+      function mkWallMat(opacity) {
+        return new THREE.MeshLambertMaterial({ color: 0x1a3a5c, transparent: true, opacity, side: THREE.DoubleSide });
       }
-      addWall(W, H, W / 2, H / 2, 0);                  // 뒤 (Z=0)
-      addWall(D, H, 0,     H / 2, D / 2, Math.PI / 2); // 왼쪽 (X=0)
-      addWall(D, H, W,     H / 2, D / 2, Math.PI / 2); // 오른쪽 (X=W)
-      // 앞쪽(Z=D) 벽은 생략 — 초기 시점에서 열린 방처럼 보임
+      const wallDefs = [
+        { key:'back',  pw:W, ph:H, px:W/2,   py:H/2, pz:0,     ry:0             }, // 2D top(y=0) → 3D Z=0
+        { key:'front', pw:W, ph:H, px:W/2,   py:H/2, pz:D,     ry:0             }, // 2D bottom(y=h) → 3D Z=D
+        { key:'left',  pw:D, ph:H, px:0,     py:H/2, pz:D/2,   ry:Math.PI/2     }, // 2D left(x=0) → 3D X=0
+        { key:'right', pw:D, ph:H, px:W,     py:H/2, pz:D/2,   ry:Math.PI/2     }, // 2D right(x=w) → 3D X=W
+      ];
+      const wallMeshes = {};
+      wallDefs.forEach(({ key, pw, ph, px, py, pz, ry }) => {
+        const mat = mkWallMat(0.5);
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), mat);
+        m.rotation.y = ry; m.position.set(px, py, pz);
+        scene.add(m);
+        wallMeshes[key] = m;
+      });
+
+      // 벽 투명도 업데이트 — 카메라가 벽의 "바깥쪽"에 있으면 그 벽을 투명하게
+      function updateWallOpacity() {
+        const cx = camera.position.x, cz = camera.position.z;
+        wallMeshes.back.material.opacity  = cz < D / 2 ? 0.07 : 0.55; // Z=0: 카메라가 앞쪽에 있으면 뒤벽 투명
+        wallMeshes.front.material.opacity = cz > D / 2 ? 0.07 : 0.55; // Z=D: 카메라가 뒤쪽에 있으면 앞벽 투명
+        wallMeshes.left.material.opacity  = cx < W / 2 ? 0.07 : 0.55; // X=0: 카메라가 오른쪽에 있으면 왼벽 투명
+        wallMeshes.right.material.opacity = cx > W / 2 ? 0.07 : 0.55; // X=W: 카메라가 왼쪽에 있으면 오른벽 투명
+      }
+      updateWallOpacity();
 
       // 천장
       const ceil = new THREE.Mesh(
@@ -309,6 +323,84 @@ export default {
         notch.position.set(W - nw / 2, H / 2, nh / 2);
         scene.add(notch);
       }
+
+      // ---- 개구부 3D 표시 (문/창) ----
+      // Group 기반: rotation.y 적용 후 로컬 좌표에서 프레임 바/패널 배치
+      const openings = roomState.openings || [];
+      function opType3d(op) { return op.type || (op.kind==='door' ? 'swing' : 'window'); }
+
+      openings.forEach((op) => {
+        const tp   = opType3d(op);
+        const sill = op.sill || 0;
+        const opH  = Math.min(op.zH || 200, H);
+        const opL  = op.len;
+        // 개구부 중심 3D 좌표: 2D top→Z=0, bottom→Z=D, left→X=0, right→X=W
+        const gx2d = op.wall==='top'||op.wall==='bottom' ? (room.w - opL) * op.pos : 0;
+        const gy2d = op.wall==='left'||op.wall==='right'  ? (room.h - opL) * op.pos : 0;
+        let cx3, cy3, cz3, ry3 = 0;
+        cy3 = sill + opH / 2;
+        if      (op.wall==='top')    { cx3=gx2d+opL/2; cz3=0;   ry3=0; }
+        else if (op.wall==='bottom') { cx3=gx2d+opL/2; cz3=D;   ry3=0; }
+        else if (op.wall==='left')   { cx3=0; cz3=gy2d+opL/2;   ry3=Math.PI/2; }
+        else                         { cx3=W; cz3=gy2d+opL/2;   ry3=Math.PI/2; }
+
+        // 문틀 프레임: 4개 바. Group 로컬 좌표 기준(중심=개구부 중심)
+        const ft = 3, fd = 8; // 틀 두께, 두께(깊이)
+        const fmat = new THREE.MeshLambertMaterial({ color: 0x63c5ff, transparent: true, opacity: 0.85 });
+        const fGrp = new THREE.Group();
+        fGrp.rotation.y = ry3; fGrp.position.set(cx3, cy3, cz3);
+        function addBar(bw, bh, lx, ly) {
+          const m = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, fd), fmat);
+          m.position.set(lx, ly, 0); fGrp.add(m);
+        }
+        addBar(opL + ft*2, ft, 0,  opH/2 + ft/2); // 상단
+        addBar(opL + ft*2, ft, 0, -opH/2 - ft/2); // 하단(바닥/창틀 선)
+        addBar(ft, opH,  -opL/2 - ft/2, 0);        // 왼쪽
+        addBar(ft, opH,   opL/2 + ft/2, 0);        // 오른쪽
+        scene.add(fGrp);
+
+        if (tp === 'swing') {
+          // 여닫이문: 개구부는 뚫림(틀만). 열린 문짝은 Group 기준 경첩 회전
+          const sd = op.swingDir || 0;
+          // sd=0: 경첩이 로컬 -X 끝 (왼쪽), sd=1: 로컬 +X 끝 (오른쪽)
+          const hingeLocalX = sd === 0 ? -opL/2 : opL/2;
+          const openDeg = 65; // 열린 각도
+          const openRad = openDeg * Math.PI / 180;
+          const doorMat = new THREE.MeshLambertMaterial({ color: 0x2a5a8c, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+          const dGrp = new THREE.Group(); // 벽 기준 그룹
+          dGrp.rotation.y = ry3; dGrp.position.set(cx3, cy3, cz3);
+          const hingeGrp = new THREE.Group(); // 경첩 기준 회전
+          hingeGrp.position.set(hingeLocalX, 0, 0);
+          hingeGrp.rotation.y = (sd === 0 ? 1 : -1) * openRad;
+          const panel = new THREE.Mesh(new THREE.BoxGeometry(opL, opH, 2.5), doorMat);
+          // 문짝 중심: 경첩에서 문 폭/2 만큼 오프셋
+          panel.position.set((sd === 0 ? 1 : -1) * opL/2, 0, 0);
+          hingeGrp.add(panel);
+          dGrp.add(hingeGrp);
+          scene.add(dGrp);
+
+        } else if (tp === 'sliding') {
+          // 미닫이: 두 개 반투명 유리 패널 (약간 어긋나게)
+          const gmat = new THREE.MeshLambertMaterial({ color: 0x63c5ff, transparent: true, opacity: 0.22, side: THREE.DoubleSide });
+          const pGrp = new THREE.Group();
+          pGrp.rotation.y = ry3; pGrp.position.set(cx3, cy3, cz3);
+          const p1 = new THREE.Mesh(new THREE.PlaneGeometry(opL*0.98, opH*0.98), gmat);
+          p1.position.set(-opL*0.12, 0, 1.5); pGrp.add(p1);
+          const p2 = new THREE.Mesh(new THREE.PlaneGeometry(opL*0.98, opH*0.98), gmat);
+          p2.position.set( opL*0.12, 0, -1.5); pGrp.add(p2);
+          scene.add(pGrp);
+
+        } else if (tp === 'window' || tp === 'bypass') {
+          // 창: 반투명 유리 패널
+          const glassColor = tp === 'bypass' ? 0x8fd6ff : 0x63c5ff;
+          const glassOp    = tp === 'bypass' ? 0.45 : 0.32;
+          const glassMat   = new THREE.MeshLambertMaterial({ color: glassColor, transparent: true, opacity: glassOp, side: THREE.DoubleSide });
+          const glass = new THREE.Mesh(new THREE.PlaneGeometry(opL, opH), glassMat);
+          glass.position.set(cx3, cy3, cz3); glass.rotation.y = ry3;
+          scene.add(glass);
+        }
+        // tp==='opening': 틀만, 유리/문짝 없음
+      }); // end openings.forEach
 
       // ---- 가구 그룹 배치 ----
       items.forEach((it) => {
@@ -390,7 +482,11 @@ export default {
 
       // ---- 렌더 루프 ----
       let animId = null;
-      function animate() { animId = requestAnimationFrame(animate); renderer.render(scene, camera); }
+      function animate() {
+        animId = requestAnimationFrame(animate);
+        updateWallOpacity(); // 카메라 방향 기준 앞벽 투명 처리
+        renderer.render(scene, camera);
+      }
       animate();
 
       // ---- 정리 (탭 전환 시 호출) ----

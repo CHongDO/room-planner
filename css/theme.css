@@ -76,12 +76,12 @@
 
   /* ---- 타이포그래피 ---- */
   --font-ui: "Segoe UI", Tahoma, "맑은 고딕", "Malgun Gothic", system-ui, sans-serif;
-  --font-size: 15px;
-  --font-size-sm: 13px;
+  --font-size: 16px;
+  --font-size-sm: 14px;
 
   /* ---- 간격 ---- */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
+  --space-1: 5px;
+  --space-2: 9px;
+  --space-3: 13px;
+  --space-4: 18px;
 }
